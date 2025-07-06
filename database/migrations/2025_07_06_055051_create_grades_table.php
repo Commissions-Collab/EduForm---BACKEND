@@ -11,12 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('enrollments', function (Blueprint $table) {
+        Schema::create('grades', function (Blueprint $table) {
             $table->id();
             $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
-            $table->string('school_year');
-            $table->foreignId('grade_level')->constrained('year_levels');
-            $table->foreignId('section_id')->constrained('sections');
+            $table->foreignId('subject_id')->constrained('subjects');
+            $table->string('quarter');
+            $table->decimal('grade', 5, 2);
+            $table->foreignId('recorded_by')->constrained('users'); // referencing teacher
             $table->timestamps();
         });
     }
@@ -26,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('enrollments');
+        Schema::dropIfExists('grades');
     }
 };
