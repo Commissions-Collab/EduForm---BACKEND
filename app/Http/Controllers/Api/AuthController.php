@@ -12,6 +12,13 @@ use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
 {
+    /**
+     * Register a new user.
+     * This method handles the registration of a new user. Only students can register.
+     * It creates a new user with the provided details and returns a JSON response with the user
+     * @param \App\Http\Requests\RegisterRequest $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function register(RegisterRequest $request){
         $user = User::create([
             'LRN' => $request->LRN,
@@ -38,6 +45,13 @@ class AuthController extends Controller
         ], 201);
     }
 
+    /**
+     * This is not redirecting the user to their dashboard after login.
+     * You can handle the redirection in your frontend after receiving the response.
+     * @param \App\Http\Requests\LoginRequest $request
+     * @return mixed|\Illuminate\Http\JsonResponse
+     */
+
     public function login(LoginRequest $request)
     {
         if (!Auth::attempt($request->only('email', 'password'))) {
@@ -56,19 +70,18 @@ class AuthController extends Controller
         ]);
     }
 
+    /**
+     * Logout the user and delete the access token.
+     *
+     * @param \Illuminate\Http\Request $request
+     * @return \Illuminate\Http\JsonResponse
+     */
     public function logout(Request $request)
     {
         $request->user()->currentAccessToken()->delete();
 
         return response()->json([
             'message' => 'Logout successful'
-        ]);
-    }
-
-    public function me(Request $request)
-    {
-        return response()->json([
-            'user' => $request->user()
         ]);
     }
 }

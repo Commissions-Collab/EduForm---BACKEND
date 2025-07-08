@@ -21,6 +21,11 @@ class LoginRequest extends FormRequest
      */
     public function rules(): array
     {
+        /**
+         * Validation rules for user login.
+         * The email must be a valid email format and the password must be a string.
+         */
+        
         return [
             'email' => 'required|email',
             'password' => 'required|string',
