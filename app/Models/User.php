@@ -3,14 +3,17 @@
 namespace App\Models;
 
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
+use App\Enums\Gender;
+use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable;
+    use HasApiTokens,HasFactory, Notifiable;
 
     /**
      * The attributes that are mass assignable.
@@ -18,9 +21,19 @@ class User extends Authenticatable
      * @var list<string>
      */
     protected $fillable = [
-        'name',
+        'LRN',
+        'first_name',
+        'middle_name',
+        'last_name',
+        'birthday',
+        'gender',
         'email',
         'password',
+        'parents_fullname',
+        'relationship_to_student',
+        'parents_number',
+        'parents_email',
+        'role',
     ];
 
     /**
@@ -43,8 +56,27 @@ class User extends Authenticatable
         return [
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
+            'role' => UserRole::class,
+            'gender' => Gender::class,
         ];
     }
+
+    // Helper methods for role checking
+    public function isSuperAdmin(): bool
+    {
+        return $this->role === UserRole::SUPER_ADMIN;
+    }
+
+    public function isTeacher(): bool
+    {
+        return $this->role === UserRole::TEACHER;
+    }
+
+    public function isStudent(): bool
+    {
+        return $this->role === UserRole::STUDENT;
+    }
+
     public  function yearLevels() {
        return $this->hasMany(YearLevel::class, 'admin_id');
     }
