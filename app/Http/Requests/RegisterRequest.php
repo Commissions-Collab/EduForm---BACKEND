@@ -24,6 +24,9 @@ class RegisterRequest extends FormRequest
      */
     public function rules(): array
     {
+        /**
+         * Validation rules for user registration.
+         */
         return [
             'LRN' => 'required|string|max:12|unique:users,LRN',
             'first_name' => 'required|string|max:255',

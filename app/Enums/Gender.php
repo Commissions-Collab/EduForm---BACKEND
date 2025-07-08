@@ -4,6 +4,9 @@ namespace App\Enums;
 
 enum Gender: string
 {
+    /**
+     * Only acceptable values for gender
+     */
     case MALE = 'male';
     case FEMALE = 'female';
     case OTHER = 'other';
