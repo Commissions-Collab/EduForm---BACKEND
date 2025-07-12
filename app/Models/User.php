@@ -128,4 +128,12 @@ class User extends Authenticatable
     public function certificateIssuedBy() {
        return $this->hasMany(CertificateRecord::class, 'issued_by');
     }
+
+    public function requestsBy() {
+       return $this->hasMany(Request::class, 'request_by');
+    }
+
+    public function requestsTo() {
+       return $this->hasMany(Request::class, 'request_to');
+    }
 }
