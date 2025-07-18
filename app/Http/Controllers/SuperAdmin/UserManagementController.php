@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers\SuperAdmin;
 
+use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class UserManagementController extends Controller
@@ -10,9 +12,13 @@ class UserManagementController extends Controller
     /**
      * Display a listing of the resource.
      */
-    public function index()
+    public function getStudentRecord()
     {
-        //
+        $students = User::where('role', UserRole::STUDENT->value)->get();
+
+        return response()->json([
+            'students' => $students
+        ]);
     }
 
     /**
