@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -41,6 +42,8 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
+
+        Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
     });
     
     /**
