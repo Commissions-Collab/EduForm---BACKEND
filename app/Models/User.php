@@ -6,6 +6,7 @@ namespace App\Models;
 use App\Enums\Gender;
 use App\Enums\UserRole;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -136,4 +137,8 @@ class User extends Authenticatable
     public function requestsTo() {
        return $this->hasMany(Request::class, 'request_to');
     }
+    public function teacher(): HasOne
+{
+    return $this->hasOne(Teacher::class);
+}
 }
