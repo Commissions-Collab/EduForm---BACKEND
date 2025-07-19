@@ -11,7 +11,7 @@ class Teacher extends Model
         'user_id',
         'name',
         'is_advisor_id',
-        'subject',
+        'subject_id',
     ];
 
     public function user(): BelongsTo
@@ -21,6 +21,10 @@ class Teacher extends Model
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class,'is_advisor_id');
+    }
+     public function subject(): BelongsTo
+    {
+        return $this->belongsTo(Subject::class,'subject_id');
     }
 
 }

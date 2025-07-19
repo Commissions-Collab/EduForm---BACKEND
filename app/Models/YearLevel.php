@@ -7,17 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 class YearLevel extends Model
 {
     public function user() {
-       return $this->belongsTo(User::class, 'admin_id');
+       return $this->belongsTo(User::class, 'user_id');
     }
-
-    public function sections () {
-       return $this->hasMany(Section::class, 'year_level_id');
-    }
-
-    public function enrollments() {
-       return $this->hasMany(Enrollment::class, 'grade_level');
-    }
-
+    
     public function promotionReport() {
        return $this->hasMany(PromotionReport::class, 'year_level_id');
     }
