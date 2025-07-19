@@ -13,18 +13,20 @@ return new class extends Migration
     {
         Schema::create('requests', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('request_by')->constrained('users')->onDelete('cascade');
             $table->foreignId('request_to')->constrained('users')->onDelete('cascade');
             $table->string('request_type');
+            $table->string('email')->unique();
+            $table->string('password');
+            $table->enum('role', ['student']);
             $table->string('LRN', 12)->unique();
             $table->string('first_name');
             $table->string('middle_name')->nullable();
             $table->string('last_name');
             $table->date('birthday');
             $table->enum('gender', ['male', 'female', 'other']);
-            $table->string('parents_fullname')->nullable();
-            $table->string('relationship_to_student')->nullable();
-            $table->string('parents_number', 15)->nullable();
+            $table->string('parents_fullname');
+            $table->enum('relationship_to_student', ['Father', 'Mother', 'Guardian']);
+            $table->string('parents_number', 15);
             $table->string('parents_email')->nullable();
             $table->string('image');
             $table->enum('status', ['pending', 'accepted', 'rejected'])->default('pending');

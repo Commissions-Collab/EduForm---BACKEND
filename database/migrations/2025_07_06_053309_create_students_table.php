@@ -19,9 +19,9 @@ return new class extends Migration
             $table->string('last_name');
             $table->date('birthday');
             $table->enum('gender', ['male', 'female', 'other']);
-            $table->string('parents_fullname')->nullable();
-            $table->string('relationship_to_student')->nullable();
-            $table->string('parents_number', 15)->nullable();
+            $table->string('parents_fullname');
+            $table->string('relationship_to_student');
+            $table->string('parents_number', 15);
             $table->string('parents_email')->nullable();
             $table->string('image');
             $table->timestamps();

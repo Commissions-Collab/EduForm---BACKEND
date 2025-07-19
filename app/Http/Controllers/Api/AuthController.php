@@ -5,9 +5,11 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
 use App\Http\Requests\RegisterRequest;
+use App\Models\Request as ModelsRequest;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class AuthController extends Controller
@@ -19,30 +21,46 @@ class AuthController extends Controller
      * @param \App\Http\Requests\RegisterRequest $request
      * @return \Illuminate\Http\JsonResponse
      */
-    public function register(RegisterRequest $request){
-        $user = User::create([
-            'LRN' => $request->LRN,
-            'first_name' => $request->first_name,
-            'middle_name' => $request->middle_name,
-            'last_name' => $request->last_name,
-            'birthday' => $request->birthday,
-            'gender' => $request->gender,
-            'email' => $request->email,
-            'password' => Hash::make($request->password),
-            'parents_fullname' => $request->parents_fullname,
-            'relationship_to_student' => $request->relationship_to_student,
-            'parents_number' => $request->parents_number,
-            'parents_email' => $request->parents_email,
-            'role' => 'student'
-        ]);
+    public function register(RegisterRequest $request)
+    {
+        $data = $request->validated();
+        DB::beginTransaction();
 
-        $token = $user->createToken('user_token')->plainTextToken;
+        try {
+            $requestUser = ModelsRequest::create([
+                'request_to' => 1,
+                'request_type' => 'student_signup',
+                'email' => $data['email'],
+                'password' => Hash::make($data['password']),
+                'LRN' => $data['LRN'],
+                'first_name' => $data['first_name'],
+                'middle_name' => $data['middle_name'],
+                'last_name' => $data['last_name'],
+                'birthday' => $data['birthday'],
+                'gender' => $data['gender'],
+                'parents_fullname' => $data['parents_fullname'],
+                'relationship_to_student' => $data['relationship_to_student'],
+                'parents_number' => $data['parents_number'],
+                'parents_email' => $data['parents_email'] ?? null,
+                'image' => $data['image'],
+                'role' => 'student',
+                'status' => 'pending'
+            ]);
 
-        return response()->json([
-            'message' => 'User registered successfully',
-            'user' => $user,
-            'token' => $token
-        ], 201);
+            DB::commit();
+
+            /**
+             * Redirect back to login page
+             * Tell that they need super admin approval
+             */
+            return response()->json([
+                'message' => 'Registration request submitted. Awaiting approval.',
+                'request' => $requestUser,
+            ], 202);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json(['error' => 'Registration failed', 'message' => $th->getMessage()], 500);
+        }
     }
 
     /**
@@ -60,7 +78,7 @@ class AuthController extends Controller
             ], 401);
         }
 
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $request->input('email'))->first();
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
