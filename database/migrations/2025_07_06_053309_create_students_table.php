@@ -11,11 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('requests', function (Blueprint $table) {
+        Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('request_by')->constrained('users')->onDelete('cascade');
-            $table->foreignId('request_to')->constrained('users')->onDelete('cascade');
-            $table->string('request_type');
             $table->string('LRN', 12)->unique();
             $table->string('first_name');
             $table->string('middle_name')->nullable();
@@ -27,7 +24,6 @@ return new class extends Migration
             $table->string('parents_number', 15)->nullable();
             $table->string('parents_email')->nullable();
             $table->string('image');
-            $table->enum('status', ['pending', 'accepted', 'rejected'])->default('pending');
             $table->timestamps();
         });
     }
@@ -37,6 +33,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('requests');
+        Schema::dropIfExists('students');
     }
 };
