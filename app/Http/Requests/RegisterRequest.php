@@ -3,7 +3,6 @@
 namespace App\Http\Requests;
 
 use App\Enums\Gender;
-use App\Enums\UserRole;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -28,18 +27,19 @@ class RegisterRequest extends FormRequest
          * Validation rules for user registration.
          */
         return [
-            'LRN' => 'required|string|max:12|unique:users,LRN',
+            'LRN' => 'required|string|max:12|unique:students,LRN',
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'birthday' => 'required|date',
             'gender' => ['required', Rule::enum(Gender::class)],
-            'email' => 'required|email|unique:users,email',
+            'email' => 'required|email|unique:users,email|unique:requests,email',
             'password' => 'required|string|min:8|confirmed',
             'parents_fullname' => 'nullable|string|max:255',
             'relationship_to_student' => 'nullable|string|max:255',
-            'parents_number' => 'nullable|string|max:15',
-            'parents_email' => 'nullable|email',
+            'parents_number' => 'nullable|string|max:15|unique:students,parents_number',
+            'parents_email' => 'nullable|email|unique:students,parents_email',
+            'image' => 'nullable|image|mimes:jpg,png,jpeg'
         ];
     }
 }

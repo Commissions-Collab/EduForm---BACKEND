@@ -15,6 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('admin_id')->constrained('users'); // Super Admin
             $table->string('name');
+            $table->timestamps();
         });
     }
 
