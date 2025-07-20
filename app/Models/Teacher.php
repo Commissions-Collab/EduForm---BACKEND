@@ -23,4 +23,7 @@ class Teacher extends Model
         return $this->belongsTo(Section::class,'is_advisor_id');
     }
 
+    public function schedule() {
+        return $this->hasMany(Schedule::class, 'teacher_id');
+    }
 }

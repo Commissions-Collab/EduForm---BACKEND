@@ -21,4 +21,8 @@ class YearLevel extends Model
     public function promotionReport() {
        return $this->hasMany(PromotionReport::class, 'year_level_id');
     }
+
+    public function schedule() {
+        return $this->hasMany(Schedule::class, 'teacher_id');
+    }
 }
