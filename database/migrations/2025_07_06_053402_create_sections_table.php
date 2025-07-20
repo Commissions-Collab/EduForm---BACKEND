@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('admin_id')->constrained('users'); // Super Admin
             $table->foreignId('year_level_id')->constrained('year_levels');
             $table->string('name');
+            $table->timestamps();
         });
     }
 

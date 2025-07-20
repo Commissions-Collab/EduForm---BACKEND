@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('request_to')->constrained('users')->onDelete('cascade');
             $table->string('request_type');
-            $table->string('email')->unique();
+            $table->string('email');
             $table->string('password');
             $table->enum('role', ['student']);
-            $table->string('LRN', 12)->unique();
+            $table->string('LRN', 12);
             $table->string('first_name');
             $table->string('middle_name')->nullable();
             $table->string('last_name');

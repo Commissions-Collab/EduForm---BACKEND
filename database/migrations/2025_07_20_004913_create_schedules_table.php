@@ -17,8 +17,8 @@ return new class extends Migration
             $table->time('start_time');
             $table->time('end_time');
             $table->foreignId('subject_id')->constrained('subjects')->onDelete('cascade');
-            $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
-            $table->foreignId('year_level_id')->constrained('year_levels')->onDelete('cascade');
+            $table->foreignId('teacher_id')->constrained('teachers');
+            $table->foreignId('year_level_id')->constrained('year_levels');
             $table->foreignId('admin_id')->constrained('users')->onDelete('cascade');
             $table->timestamps();
         });
