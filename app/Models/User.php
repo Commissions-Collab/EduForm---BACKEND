@@ -133,11 +133,6 @@ class User extends Authenticatable
       return $this->hasMany(CertificateRecord::class, 'issued_by');
    }
 
-   public function requestsBy()
-   {
-      return $this->hasMany(Request::class, 'request_by');
-   }
-
    public function requestsTo()
    {
       return $this->hasMany(Request::class, 'request_to');
@@ -149,5 +144,9 @@ class User extends Authenticatable
 
    public function student() {
       return $this->hasOne(Student::class);
+   }
+
+   public function schedule() {
+      return $this->hasMany(Schedule::class, 'admin_id');
    }
 }

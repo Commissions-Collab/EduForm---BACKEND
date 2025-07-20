@@ -14,6 +14,8 @@ return new class extends Migration
         Schema::create('subjects', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->foreignId('advisor_id')->constrained('users');
+            $table->timestamps();
         });
     }
 
