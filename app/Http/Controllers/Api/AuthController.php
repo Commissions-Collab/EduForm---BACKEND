@@ -28,7 +28,7 @@ class AuthController extends Controller
 
         try {
             $requestUser = ModelsRequest::create([
-                'request_to' => 1,
+                'request_to' => 2,
                 'request_type' => 'student_signup',
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),

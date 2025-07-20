@@ -20,5 +20,10 @@ class Student extends Model
       'relationship_to_student',
       'parents_number',
       'parents_email',
+      'image'
    ];
+
+   public function section () {
+      return $this->belongsTo(Section::class, 'section_id');
+   }
 }
