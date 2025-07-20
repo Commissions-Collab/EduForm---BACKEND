@@ -150,4 +150,8 @@ class User extends Authenticatable
    public function student() {
       return $this->hasOne(Student::class);
    }
+
+   public function schedule() {
+      return $this->hasMany(Schedule::class, 'admin_id');
+   }
 }
