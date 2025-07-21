@@ -20,10 +20,6 @@ class Student extends Model
       'relationship_to_student',
       'parents_number',
       'parents_email',
+      'image'
    ];
-
-
-   public function user() {
-       return $this->belongsTo(User::class, 'user_id');
-    }
 }

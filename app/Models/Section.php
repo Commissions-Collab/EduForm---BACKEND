@@ -25,8 +25,18 @@ class Section extends Model
         return $this->belongsTo(YearLevel::class, 'year_level_id');
     }
 
+    public function students()
+    {
+        return $this->hasMany(Student::class, 'student_id');
+    }
+
     public function enrollments()
     {
         return $this->hasMany(Enrollment::class, 'section_id');
+    }
+
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class, 'schedule_id');
     }
 }

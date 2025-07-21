@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
@@ -32,7 +33,7 @@ Route::post('/login', [AuthController::class, 'login']);
  */
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
-    
+
     /**
      * Super admin routes
      * These routes are accessible only to users with the 'super_admin' role.
@@ -46,18 +47,26 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
         Route::post('/admin/schedule', [UserManagementController::class, 'createTeacherSchedule']);
     });
-    
+
     /**
      * Teacher routes
      * These routes are accessible only to users with the 'teacher' role.
      */
-    Route::middleware('role:teacher')->group(function () {
+    Route::middleware('role:teacher')->prefix('/teacher')->group(function () {
         // Teacher only routes
-        Route::get('/teacher/dashboard', function () {
+        Route::get('/dashboard', function () {
             return response()->json(['message' => 'Teacher Dashboard']);
         });
+
+
+        Route::controller(StudentApprovalController::class)->group(function () {
+            Route::get('/students/approved', 'index');
+            Route::get('/students/pending', 'pending');
+            Route::get('/students/rejected', 'rejected');
+            Route::put('/student-requests/{id}/approve', 'approvedStudents');
+            Route::put('/student-requests/{id}/reject', 'rejectApproval');
+        });
     });
-    
 
     /**
      * Student routes

@@ -22,7 +22,7 @@ class DatabaseSeeder extends Seeder
 
         // Create Teachers
         $teacher1 = User::factory()->teacher()->create([
-            'email' => 'teacher1@gmail.com',
+            'email' => 'registrar@gmail.com',
             'password' => bcrypt('secret'),
         ]);
 
