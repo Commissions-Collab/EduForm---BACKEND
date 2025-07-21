@@ -13,7 +13,11 @@ class Attendance extends Model
         'remarks'
     ];
 
-    public function user()
+    protected $casts = [
+        'date' => 'date',
+    ];
+
+    public function student()
     {
         return $this->belongsTo(User::class, 'student_id');
     }

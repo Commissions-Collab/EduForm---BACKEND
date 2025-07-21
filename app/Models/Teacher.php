@@ -14,13 +14,14 @@ class Teacher extends Model
         'user_id',
         'name',
         'is_advisor_id',
-        'subject',
+        'subject_id',
     ];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class, 'is_advisor_id');

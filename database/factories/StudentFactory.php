@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Section;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -27,7 +28,8 @@ class StudentFactory extends Factory
             'relationship_to_student' => $this->faker->randomElement(['Father', 'Mother', 'Guardian']),
             'parents_number' => $this->faker->numerify('09#########'),
             'parents_email' => $this->faker->safeEmail(),
-            'image' => 'https://placehold.co/400'
+            'image' => 'https://placehold.co/400',
+            'section_id' => Section::inRandomOrder()->first()?->id ?? Section::factory()->create()->id,
         ];
     }
 }

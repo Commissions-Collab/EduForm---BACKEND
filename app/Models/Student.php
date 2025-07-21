@@ -7,9 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 
 class Student extends Model
 {
-    use HasFactory;
+   use HasFactory;
 
-    protected $fillable = [
+   protected $fillable = [
       'LRN',
       'first_name',
       'middle_name',
@@ -23,7 +23,13 @@ class Student extends Model
       'image'
    ];
 
-   public function section () {
+   public function attendances()
+   {
+      return $this->hasMany(Attendance::class);
+   }
+
+   public function section()
+   {
       return $this->belongsTo(Section::class, 'section_id');
    }
 }
