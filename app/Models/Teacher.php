@@ -31,8 +31,4 @@ class Teacher extends Model
         return $this->belongsTo(Subject::class,'subject_id');
     }
 
-    public function schedules()
-    {
-        return $this->hasMany(Schedule::class, 'teacher_id');
-    }
 }

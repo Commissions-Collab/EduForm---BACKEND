@@ -3,6 +3,9 @@
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\SuperAdmin\ScheduleController;
+use App\Http\Controllers\SuperAdmin\SectionController;
+use App\Http\Controllers\SuperAdmin\TeacherController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -39,14 +42,16 @@ Route::middleware('auth:sanctum')->group(function () {
      * Super admin routes
      * These routes are accessible only to users with the 'super_admin' role.
      */
-    Route::middleware('role:super_admin')->group(function () {
+    Route::middleware(['auth:sanctum', 'role:super_admin'])->group(function () {
         // Super admin only routes
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
 
         Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
-        Route::post('/admin/schedule', [UserManagementController::class, 'createTeacherSchedule']);
+        Route::post('/admin/schedule', [ScheduleController::class, 'createTeacherSchedule']);
+        Route::post('/admin/section', [SectionController::class, 'createSections']);
+        Route::post('/admin/teacher', [TeacherController::class, 'teacherRegistration']);
     });
 
     /**

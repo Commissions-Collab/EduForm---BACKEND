@@ -14,10 +14,7 @@ class Section extends Model
         'name'
     ];
     
-    public function user()
-    {
-        return $this->belongsTo(User::class, 'admin_id');
-    }
+  
 
     public function yearLevel()
     {

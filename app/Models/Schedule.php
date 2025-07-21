@@ -14,6 +14,7 @@ class Schedule extends Model
         'start_time',
         'end_time',
         'subject_id',
+        'section_id',
         'teacher_id',
         'year_level_id',
     ];
@@ -31,5 +32,9 @@ class Schedule extends Model
     public function year_level()
     {
         return $this->belongsTo(YearLevel::class, 'year_level_id');
+    }
+    public function section()
+    {
+        return $this->belongsTo(Section::class,'section_id');
     }
 }
