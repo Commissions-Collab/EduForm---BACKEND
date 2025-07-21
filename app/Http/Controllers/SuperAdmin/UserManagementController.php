@@ -4,14 +4,13 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Enums\UserRole;
 use App\Http\Controllers\Controller;
+use App\Models\Schedule;
 use App\Models\User;
 use Illuminate\Http\Request;
 
 class UserManagementController extends Controller
 {
-    /**
-     * Display a listing of the resource.
-     */
+    
     public function getStudentRecord()
     {
         $students = User::where('role', UserRole::STUDENT->value)->get();
@@ -21,36 +20,49 @@ class UserManagementController extends Controller
         ]);
     }
 
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create()
-    {
-        //
-    }
+  
+    public function createTeacherSchedule(Request $request)
+{
+    $validated = $request->validate([
+        'teacher_id' => 'required|exists:teachers,id',
+        'subject_id' => 'required|exists:subjects,id',
+        'year_level_id' => 'required|exists:year_levels,id',
+        'day' => 'required|string',
+        'start_time' => 'required|date_format:H:i',
+        'end_time' => 'required|date_format:H:i|after:start_time',
+    ]);
 
-    /**
-     * Store a newly created resource in storage.
-     */
+    $schedule = Schedule::create([
+        'teacher_id' => $validated['teacher_id'],
+        'subject_id' => $validated['subject_id'],
+        'year_level_id' => $validated['year_level_id'],
+        'day' => $validated['day'],
+        'start_time' => $validated['start_time'],
+        'end_time' => $validated['end_time'],
+    ]);
+
+    return response()->json([
+        'message' => 'Schedule created successfully.',
+        'schedule' => $schedule,
+    ], 201);
+}
+
+  
     public function store(Request $request)
     {
-        //
+      
     }
 
-    /**
-     * Display the specified resource.
-     */
+   
     public function show(string $id)
     {
-        //
+        
     }
 
-    /**
-     * Show the form for editing the specified resource.
-     */
+    
     public function edit(string $id)
     {
-        //
+        
     }
 
     /**
@@ -58,14 +70,12 @@ class UserManagementController extends Controller
      */
     public function update(Request $request, string $id)
     {
-        //
+        
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
+  
     public function destroy(string $id)
     {
-        //
+        
     }
 }

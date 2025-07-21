@@ -44,6 +44,7 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
+        Route::post('/admin/schedule', [UserManagementController::class, 'createTeacherSchedule']);
     });
     
     /**

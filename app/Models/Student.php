@@ -21,4 +21,9 @@ class Student extends Model
       'parents_number',
       'parents_email',
    ];
+
+
+   public function user() {
+       return $this->belongsTo(User::class, 'user_id');
+    }
 }
