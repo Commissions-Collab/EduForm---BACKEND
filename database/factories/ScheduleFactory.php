@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Section;
 use App\Models\Subject;
 use App\Models\User;
 use App\Models\YearLevel;
@@ -34,6 +35,7 @@ class ScheduleFactory extends Factory
         $teacher = User::where('role', 'teacher')->inRandomOrder()->first();
         $subject = Subject::inRandomOrder()->first();
         $yearLevel = YearLevel::inRandomOrder()->first();
+        $section = Section::inRandomOrder()->first() ?? Section::factory()->create();
 
         // Prevent null ID issues
         if (!$teacher || !$subject || !$yearLevel) {
@@ -56,6 +58,7 @@ class ScheduleFactory extends Factory
             'subject_id' => $subject->id,
             'teacher_id' => $teacher->id,
             'year_level_id' => $yearLevel->id,
+            'section_id' => $section->id,
             'admin_id' => 1, // You can customize this
         ];
     }

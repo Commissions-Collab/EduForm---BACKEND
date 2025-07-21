@@ -38,9 +38,7 @@ class DatabaseSeeder extends Seeder
         Student::factory()->count(10)->create();
 
         // Create Year Levels
-        $yearLevels = YearLevel::factory()->count(4)->create([
-            'admin_id' => $admin->id
-        ]);
+        $yearLevels = YearLevel::factory()->count(4)->create();
 
         Teacher::factory()->count(10)->create();
 

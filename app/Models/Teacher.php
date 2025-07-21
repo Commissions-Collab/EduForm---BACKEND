@@ -21,6 +21,7 @@ class Teacher extends Model
     {
         return $this->belongsTo(User::class, 'user_id');
     }
+    
     public function section(): BelongsTo
     {
         return $this->belongsTo(Section::class, 'is_advisor_id');

@@ -18,7 +18,7 @@ class Subject extends Model
        return $this->hasMany(Grade::class, 'subject_id');
     }
 
-    public function schedule() {
+    public function schedules() {
         return $this->hasMany(Schedule::class, 'subject_id');
     }
 

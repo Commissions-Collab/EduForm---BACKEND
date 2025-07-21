@@ -24,6 +24,7 @@ return new class extends Migration
             $table->string('parents_number', 15);
             $table->string('parents_email')->nullable();
             $table->string('image');
+            $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
             $table->timestamps();
         });
     }

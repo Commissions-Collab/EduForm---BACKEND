@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
@@ -58,13 +59,23 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['message' => 'Teacher Dashboard']);
         });
 
-
+        /**
+         * Controller for students access request
+         */
         Route::controller(StudentApprovalController::class)->group(function () {
             Route::get('/students/approved', 'index');
             Route::get('/students/pending', 'pending');
             Route::get('/students/rejected', 'rejected');
             Route::put('/student-requests/{id}/approve', 'approvedStudents');
             Route::put('/student-requests/{id}/reject', 'rejectApproval');
+        });
+
+        /**
+         * Controller for attendance management
+         */
+        Route::controller(AttendanceController::class)->group(function () {
+            Route::get('/subjects', 'getTeacherSubjects');
+            Route::post('/students', 'getStudentsForAttendance');
         });
     });
 
