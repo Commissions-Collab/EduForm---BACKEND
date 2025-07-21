@@ -26,8 +26,8 @@ class YearLevelFactory extends Factory
                 'Grade 11',
                 'Grade 12'
             ]),
-            'admin_id' => User::where('role', 'super_admin')->inRandomOrder()->first()?->id
-                ?? User::factory()->create(['role' => 'super_admin'])->id,
+            // 'admin_id' => User::where('role', 'super_admin')->inRandomOrder()->first()?->id
+            //     ?? User::factory()->create(['role' => 'super_admin'])->id,
         ];
     }
 }

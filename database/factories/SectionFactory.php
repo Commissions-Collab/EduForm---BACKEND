@@ -15,12 +15,11 @@ class SectionFactory extends Factory
     {
         // Ensure YearLevel and Admin exist
         $yearLevel = YearLevel::inRandomOrder()->first() ?? YearLevel::factory()->create();
-        $admin = User::where('role', 'super_admin')->inRandomOrder()->first() ?? User::factory()->admin()->create();
+        
 
         return [
             'name' => $this->faker->unique()->randomLetter . '-' . $this->faker->randomElement(['1', '2', '3', '4']),
             'year_level_id' => $yearLevel->id,
-            'admin_id' => $admin->id,
         ];
     }
 }

@@ -59,7 +59,6 @@ class ScheduleFactory extends Factory
             'teacher_id' => $teacher->id,
             'year_level_id' => $yearLevel->id,
             'section_id' => $section->id,
-            'admin_id' => 1, // You can customize this
         ];
     }
 }

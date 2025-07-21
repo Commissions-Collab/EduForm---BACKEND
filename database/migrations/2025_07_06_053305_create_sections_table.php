@@ -13,7 +13,6 @@ return new class extends Migration
     {
         Schema::create('sections', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained('users'); // Super Admin
             $table->foreignId('year_level_id')->constrained('year_levels');
             $table->string('name');
             $table->timestamps();

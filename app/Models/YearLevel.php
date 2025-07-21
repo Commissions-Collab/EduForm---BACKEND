@@ -10,13 +10,9 @@ class YearLevel extends Model
    use HasFactory;
 
    protected $fillable = [
-      'admin_id',
       'name'
    ];
 
-    public function user() {
-       return $this->belongsTo(User::class, 'user_id');
-    }
     
     public function promotionReport() {
        return $this->hasMany(PromotionReport::class, 'year_level_id');

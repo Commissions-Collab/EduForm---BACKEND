@@ -60,7 +60,6 @@ class DatabaseSeeder extends Seeder
                 'subject_id' => $subject->id,
                 'teacher_id' => $subject->advisor_id, // fixed here
                 'year_level_id' => $yearLevels->random()->id,
-                'admin_id' => $admin->id,
             ]);
         }
     }

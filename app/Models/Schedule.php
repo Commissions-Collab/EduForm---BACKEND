@@ -16,7 +16,6 @@ class Schedule extends Model
         'subject_id',
         'teacher_id',
         'year_level_id',
-        'admin_id'
     ];
 
     public function teacher()
