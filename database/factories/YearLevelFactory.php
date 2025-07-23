@@ -17,17 +17,12 @@ class YearLevelFactory extends Factory
      */
     public function definition(): array
     {
+        static $gradeNumber = 1;
+        
         return [
-            'name' => $this->faker->unique()->randomElement([
-                'Grade 7',
-                'Grade 8',
-                'Grade 9',
-                'Grade 10',
-                'Grade 11',
-                'Grade 12'
-            ]),
-            // 'admin_id' => User::where('role', 'super_admin')->inRandomOrder()->first()?->id
-            //     ?? User::factory()->create(['role' => 'super_admin'])->id,
+            'name' => "Grade {$gradeNumber}",
+            'code' => "G{$gradeNumber}",
+            'sort_order' => $gradeNumber++,
         ];
     }
 }

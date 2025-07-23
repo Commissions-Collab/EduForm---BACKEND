@@ -4,25 +4,65 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Subject extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
-        'adivisor_id'
+        'code',
+        'description',
+        'units',
+        'is_active'
     ];
 
-    public function grades() {
-       return $this->hasMany(Grade::class, 'subject_id');
+    protected function casts(): array
+    {
+        return [
+            'is_active' => 'boolean',
+        ];
     }
 
-    public function schedules() {
-        return $this->hasMany(Schedule::class, 'subject_id');
+    // Relationships
+    public function teacherSubjects()
+    {
+        return $this->hasMany(TeacherSubject::class);
     }
 
-    public function teacher () {
-        return $this->belongsTo(Teacher::class, 'advisor_id');
+    public function teachers()
+    {
+        return $this->belongsToMany(Teacher::class, 'teacher_subjects')
+                    ->withPivot('academic_year_id')
+                    ->withTimestamps();
+    }
+
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
+
+    public function attendances()
+    {
+        return $this->hasManyThrough(Attendance::class, Schedule::class);
+    }
+
+    public function attendanceSummaries()
+    {
+        return $this->hasMany(AttendanceSummary::class);
+    }
+
+    // Helper methods
+    public function currentTeachers()
+    {
+        $currentYear = AcademicYear::where('is_current', true)->first();
+        return $this->teachers()->wherePivot('academic_year_id', $currentYear?->id);
+    }
+
+    // Scopes
+    public function scopeActive($query)
+    {
+        return $query->where('is_active', true);
     }
 }

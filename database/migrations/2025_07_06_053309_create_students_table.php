@@ -13,19 +13,33 @@ return new class extends Migration
     {
         Schema::create('students', function (Blueprint $table) {
             $table->id();
-            $table->string('LRN', 12)->unique();
+            $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
+            $table->string('lrn', 12)->unique(); // Learner Reference Number
+            $table->string('student_id')->unique(); // School student ID
             $table->string('first_name');
             $table->string('middle_name')->nullable();
             $table->string('last_name');
             $table->date('birthday');
             $table->enum('gender', ['male', 'female', 'other']);
-            $table->string('parents_fullname');
+            $table->string('address')->nullable();
+            $table->string('phone')->nullable();
+
+            // Parent/Guardian Information
+            $table->string('parent_guardian_name');
             $table->string('relationship_to_student');
-            $table->string('parents_number', 15);
-            $table->string('parents_email')->nullable();
-            $table->string('image');
-            $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
+            $table->string('parent_guardian_phone');
+            $table->string('parent_guardian_email')->nullable();
+
+            // Student Photo
+            $table->string('photo')->nullable();
+
+            // Enrollment Information
+            $table->date('enrollment_date');
+            $table->enum('enrollment_status', ['enrolled', 'transferred', 'graduated', 'dropped'])->default('enrolled');
+
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

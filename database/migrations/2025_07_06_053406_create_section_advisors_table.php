@@ -11,17 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('sections', function (Blueprint $table) {
+        Schema::create('section_advisors', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('year_level_id')->constrained('year_levels')->onDelete('cascade');
+            $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
+            $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
             $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
-            $table->string('name'); // e.g., "Section A", "Section B"
-            $table->integer('capacity')->default(40);
             $table->timestamps();
-            $table->softDeletes();
 
-            // One section name per year level per academic year
-            $table->unique(['year_level_id', 'academic_year_id', 'name'], 'unique_section_per_year');
+            // One advisor per section per academic year
+            $table->unique(['section_id', 'academic_year_id'], 'unique_section_advisor_year');
         });
     }
 
@@ -30,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('sections');
+        Schema::dropIfExists('section_advisors');
     }
 };

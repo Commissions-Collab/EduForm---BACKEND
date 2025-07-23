@@ -10,20 +10,18 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 
 class TeacherFactory extends Factory
 {
-    protected $model = Teacher::class;
-
     public function definition(): array
     {
-        // Ensure required related models exist
-        $user = User::inRandomOrder()->first() ?? User::factory()->create();
-        $section = Section::inRandomOrder()->first() ?? Section::factory()->create();
-        $subject = Subject::inRandomOrder()->first() ?? Subject::factory()->create();
-
         return [
-            'user_id' => $user->id,
-            'name' => $this->faker->name,
-            'is_advisor_id' => $section->id,
-            'subject_id' => $subject->id,
+            'user_id' => User::factory()->teacher(),
+            'employee_id' => 'T' . str_pad(fake()->unique()->numberBetween(1, 9999), 4, '0', STR_PAD_LEFT),
+            'first_name' => fake()->firstName(),
+            'middle_name' => fake()->optional(0.7)->lastName(),
+            'last_name' => fake()->lastName(),
+            'phone' => fake()->optional(0.8)->phoneNumber(),
+            'hire_date' => fake()->dateTimeBetween('-10 years', '-6 months'),
+            'employment_status' => fake()->randomElement(['active', 'active', 'active', 'active', 'inactive']),
         ];
     }
+
 }

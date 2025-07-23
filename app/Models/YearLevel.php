@@ -4,21 +4,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class YearLevel extends Model
 {
-   use HasFactory;
+   use HasFactory, SoftDeletes;
 
    protected $fillable = [
-      'name'
+      'name',
+      'code',
+      'sort_order'
    ];
 
-    
-    public function promotionReport() {
-       return $this->hasMany(PromotionReport::class, 'year_level_id');
-    }
+   // Relationships
+   public function sections()
+   {
+      return $this->hasMany(Section::class);
+   }
 
-    public function schedule() {
-        return $this->hasMany(Schedule::class, 'teacher_id');
-    }
+   // Scopes
+   public function scopeOrdered($query)
+   {
+      return $query->orderBy('sort_order');
+   }
 }

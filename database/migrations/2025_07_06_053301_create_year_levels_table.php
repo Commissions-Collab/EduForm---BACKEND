@@ -13,8 +13,11 @@ return new class extends Migration
     {
         Schema::create('year_levels', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
+            $table->string('name'); // e.g., "Grade 7", "Grade 8"
+            $table->string('code')->nullable(); // e.g., "G7", "G8"
+            $table->integer('sort_order')->default(0);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

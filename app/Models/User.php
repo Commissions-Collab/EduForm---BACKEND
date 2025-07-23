@@ -25,6 +25,8 @@ class User extends Authenticatable
       'email',
       'password',
       'role',
+      'otp',
+      'is_verified'
    ];
 
    /**
@@ -48,7 +50,7 @@ class User extends Authenticatable
          'email_verified_at' => 'datetime',
          'password' => 'hashed',
          'role' => UserRole::class,
-         'gender' => Gender::class,
+         'is_verified' => 'boolean',
       ];
    }
 
@@ -68,85 +70,18 @@ class User extends Authenticatable
       return $this->role === UserRole::STUDENT;
    }
 
-   public  function yearLevels()
-   {
-      return $this->hasMany(YearLevel::class, 'admin_id');
-   }
-
-   public function sections()
-   {
-      return $this->hasMany(Section::class, 'admin_id');
-   }
-
-   public function enrollments()
-   {
-      return $this->hasMany(Enrollment::class, 'student_id');
-   }
-
-   public function attendances()
-   {
-      return $this->hasMany(Attendance::class, 'student_id');
-   }
-
-   public function grades()
-   {
-      return $this->hasMany(Grade::class, 'student_id');
-   }
-
-   public function recorderBy()
-   {
-      return $this->hasMany(Grade::class, 'recorded_by');
-   }
-
-   public function permanentRecords()
-   {
-      return $this->hasMany(PermanentRecord::class, 'student_id');
-   }
-
-   public function validatedBy()
-   {
-      return $this->hasMany(PermanentRecord::class, 'validated_by');
-   }
-
-   public function healthProfiles()
-   {
-      return $this->hasMany(HealthProfile::class, 'student_id');
-   }
-
-   public function updateHealthProfiles()
-   {
-      return $this->hasMany(HealthProfile::class, 'updated_by');
-   }
-
-   public function bookInventories()
-   {
-      return $this->hasMany(BookInventory::class, 'student_id');
-   }
-
-   public function certificateRecords()
-   {
-      return $this->hasMany(CertificateRecord::class, 'student_id');
-   }
-
-   public function certificateIssuedBy()
-   {
-      return $this->hasMany(CertificateRecord::class, 'issued_by');
-   }
-
-   public function requestsTo()
-   {
-      return $this->hasMany(Request::class, 'request_to');
-   }
-   public function teacher(): HasOne
+   public function teacher()
    {
       return $this->hasOne(Teacher::class);
    }
 
-   public function student() {
+   public function student()
+   {
       return $this->hasOne(Student::class);
    }
 
-   public function schedule() {
-      return $this->hasMany(Schedule::class, 'admin_id');
+   public function recordedAttendances()
+   {
+      return $this->hasMany(Attendance::class, 'recorded_by');
    }
 }
