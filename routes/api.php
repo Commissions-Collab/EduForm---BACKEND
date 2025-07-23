@@ -47,11 +47,21 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
-
+        //display
         Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
+
         Route::post('/admin/schedule', [ScheduleController::class, 'createTeacherSchedule']);
         Route::post('/admin/section', [SectionController::class, 'createSections']);
         Route::post('/admin/teacher', [TeacherController::class, 'teacherRegistration']);
+
+        //update 
+        Route::put('/admin/teachers/{id}record', [TeacherController::class, 'updateTeacherRecord']);
+        Route::put('/admin/teachers/{id}/advisory', [TeacherController::class, 'updateClassAdvisory']);
+        Route::put('/admin/teachers/{id}/subject', [TeacherController::class, 'updateTeachersSubject']);
+        Route::put('/admin/student/{id}', [UserManagementController::class, 'updateStudent']);
+        //delete
+        Route::delete('/admin/teachers/{id}', [TeacherController::class, 'deleteTeacher']);
+        Route::delete('/admin/student/{id}', [UserManagementController::class, 'deleteStudent']);
     });
 
     /**
