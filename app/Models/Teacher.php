@@ -47,8 +47,6 @@ class Teacher extends Model
                     ->withTimestamps();
     }
 
-<<<<<<< HEAD
-=======
     public function schedules()
     {
         return $this->hasMany(Schedule::class);
@@ -94,5 +92,4 @@ class Teacher extends Model
     {
         return $query->where('employment_status', 'active');
     }
->>>>>>> 65a4355cc081de12f75e6f2d79f68b03e53bdf2d
 }

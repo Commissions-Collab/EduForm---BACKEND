@@ -15,12 +15,17 @@ class TeacherController extends Controller
     $validated = $request -> validate([
         'email' => 'required|email|unique:users,email',
         'password' => 'required|string|min:8|confirmed',
-        'name' => 'required|string|max:255',
         'role'=> 'required|string|max:255',
-        'is_advisor_id' => 'required|exists:sections,id',
-        'subject_id' => 'required|exists:subjects,id'
-    ]);
 
+        'employee_id' =>'required|string|max:255',
+        'first_name' =>'required|string|max:255',
+        'middle_name' =>'nullable|string|max:255',
+        'last_name' => 'required|string|max:255',
+        'phone' => 'nullable|string|max:255',
+        'hire_date' =>'required|string|max:255',
+        'employment_status' => 'required|string|max:255',
+        
+    ]);
 
     $user = User::create([
         'email' => $validated['email'],
@@ -30,9 +35,14 @@ class TeacherController extends Controller
 
     $teacher = Teacher::create([
         'user_id' => $user->id,
-        'name'=>$validated['name'],
-        'subject_id' => $validated['subject_id'],
-        'is_advisor_id' => $validated['is_advisor_id'],
+        'first_name'=>$validated['first_name'],
+        'middle_name'=>$validated['middle_name'],
+        'last_name'=>$validated['last_name'],
+        'employee_id'=>$user->id,
+        'phone'=>$validated['phone'],
+        'hire_date'=>$validated['hire_date'],
+        'employment_status'=> 'active',
+        
     ]);
      return response()->json([
         'message' => 'Teacher registered successfully',
