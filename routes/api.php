@@ -91,6 +91,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::controller(AttendanceController::class)->group(function () {
             Route::get('/subjects', 'getTeacherSubjects');
             Route::post('/students', 'getStudentsForAttendance');
+            Route::post('/attendance/update', 'updateAttendace');
         });
     });
 

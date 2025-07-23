@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Attendance;
 use App\Models\Schedule;
 use App\Models\Student;
 use App\Models\Subject;
@@ -160,6 +161,63 @@ class AttendanceController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Error fetching students: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+
+    public function updateAttendace(Request $request)
+    {
+        try {
+            $request->validate([
+                'student_id' => ['required', 'exists:students,id'],
+                'date' => ['required', 'date'],
+                'status' => ['required', 'in:present,absent,late'],
+                'remarks' => ['nullable', 'string', 'max:255'],
+            ]);
+
+            // Verify if the teacher has permission for this students 
+            $teacher = Teacher::where('user_id', Auth::user()->id);
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Teacher profile not found.'
+                ], 404);
+            }
+
+            $attendance = Attendance::updateOrCreate(
+                [
+                    'student_id' => $request->student_id,
+                    'date' => $request->date,
+                ],
+                [
+                    'status' => $request->status,
+                    'remarks' => $request->status === 'present' ? null : $request->remarks,
+                ]
+            );
+
+            // Load student data for response
+            $student = Student::find($request->student_id);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Attendance updated successfully',
+                'data' => [
+                    'attendance' => [
+                        'id' => $attendance->id,
+                        'student_id' => $attendance->student_id,
+                        'student_name' => $student->first_name . ' ' . $student->last_name,
+                        'date' => $attendance->date,
+                        'status' => $attendance->status,
+                        'remarks' => $attendance->remarks,
+                        'updated_at' => $attendance->updated_at
+                    ]
+                ]
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error updating attendance: ' . $th->getMessage()
             ], 500);
         }
     }

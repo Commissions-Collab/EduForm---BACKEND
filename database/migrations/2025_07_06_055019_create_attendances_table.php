@@ -13,11 +13,26 @@ return new class extends Migration
     {
         Schema::create('attendances', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
-            $table->date('date');
-            $table->enum('status', ['present', 'absent', 'late']);
-            $table->string('remarks')->nullable();
+            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
+            $table->foreignId('schedule_id')->constrained('schedules')->onDelete('cascade');
+            $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
+
+            // Attendance Details
+            $table->date('attendance_date');
+            $table->enum('status', ['present', 'absent', 'late', 'excused']);
+            $table->time('time_in')->nullable(); // For late arrivals
+            $table->time('time_out')->nullable(); // For early departures
+            $table->text('remarks')->nullable();
+
+            // Who recorded the attendance
+            $table->foreignId('recorded_by')->constrained('users');
+            $table->timestamp('recorded_at');
+
             $table->timestamps();
+            $table->softDeletes();
+
+            // Ensure one attendance record per student per class per date
+            $table->unique(['student_id', 'schedule_id', 'attendance_date'], 'unique_student_class_attendance');
         });
     }
 

@@ -2,8 +2,10 @@
 
 namespace Database\Factories;
 
+use App\Models\AcademicYear;
 use App\Models\Section;
 use App\Models\Subject;
+use App\Models\Teacher;
 use App\Models\User;
 use App\Models\YearLevel;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -13,52 +15,21 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class ScheduleFactory extends Factory
 {
-    protected $model = \App\Models\Schedule::class;
-
-    protected static $timeSlots = [
-        ['08:00:00', '09:00:00'],
-        ['09:00:00', '10:00:00'],
-        ['10:00:00', '11:00:00'],
-        ['11:00:00', '12:00:00'],
-        ['13:00:00', '14:00:00'],
-        ['14:00:00', '15:00:00'],
-        ['15:00:00', '16:00:00'],
-    ];
-
-    protected static $usedSlots = [];
-
     public function definition(): array
     {
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-
-        // Ensure required models exist
-        $teacher = User::where('role', 'teacher')->inRandomOrder()->first();
-        $subject = Subject::inRandomOrder()->first();
-        $yearLevel = YearLevel::inRandomOrder()->first();
-        $section = Section::inRandomOrder()->first() ?? Section::factory()->create();
-
-        // Prevent null ID issues
-        if (!$teacher || !$subject || !$yearLevel) {
-            throw new \Exception('Required related models (teacher, subject, year level) are missing.');
-        }
-
-        // Loop to find a unique slot
-        do {
-            $day = $this->faker->randomElement($days);
-            $slot = $this->faker->randomElement(self::$timeSlots);
-            $key = $day . '_' . $slot[0] . '_' . $slot[1];
-        } while (in_array($key, self::$usedSlots));
-
-        self::$usedSlots[] = $key;
-
+        $startTime = fake()->time('H:i:s', '16:00:00');
+        $endTime = date('H:i:s', strtotime($startTime) + 3600); // 1 hour later
+        
         return [
-            'day' => $day,
-            'start_time' => $slot[0],
-            'end_time' => $slot[1],
-            'subject_id' => $subject->id,
-            'teacher_id' => $teacher->id,
-            'year_level_id' => $yearLevel->id,
-            'section_id' => $section->id,
+            'subject_id' => Subject::factory(),
+            'teacher_id' => Teacher::factory(),
+            'section_id' => Section::factory(),
+            'academic_year_id' => AcademicYear::factory(),
+            'day_of_week' => fake()->randomElement(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']),
+            'start_time' => $startTime,
+            'end_time' => $endTime,
+            'room' => fake()->optional(0.8)->bothify('Room ###'),
+            'is_active' => fake()->boolean(95),
         ];
     }
 }
