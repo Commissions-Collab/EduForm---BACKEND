@@ -74,9 +74,13 @@ Route::middleware('auth:sanctum')->group(function () {
          * Controller for attendance management
          */
         Route::controller(AttendanceController::class)->group(function () {
-            Route::get('/subjects', 'getTeacherSubjects');
-            Route::post('/students', 'getStudentsForAttendance');
-            Route::post('/attendance/update', 'updateAttendace');
+            Route::get('/schedule/weekly', 'getWeeklySchedule');
+            Route::get('/schedule/{scheduleId}/students', 'getScheduleStudents');
+            Route::post('/attendance/update-individual', 'updateIndividualAttendance');
+            Route::post('/attendance/update-bulk', 'updateBulkAttendance');
+            Route::post('/attendance/update-all', 'updateAllStudentsAttendance');
+            Route::get('/schedule/{scheduleId}/attendance-history', 'getAttendanceHistory');
+            Route::get('/student/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
         });
     });
 
