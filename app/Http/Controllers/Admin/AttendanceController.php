@@ -74,17 +74,6 @@ class AttendanceController extends Controller
             // Get academic calendar for the week (holidays, special events)
             $calendarEvents = $this->getWeekCalendarEvents($academicYear->id, $weekStart, $weekEnd);
 
-            // foreach ($schedules as $schedule) {
-            //     Log::debug('Checking subject:', ['subject' => $schedule->subject]);
-            //     Log::debug('Checking section:', ['section' => $schedule->section]);
-
-            //     // Optional: If you also use teacher or other relations
-            //     Log::debug('Checking teacher:', ['teacher' => $schedule->teacher ?? null]);
-            // }
-            // Log::debug('Academic Year:', ['value' => $academicYear]);
-
-
-
             // Format schedule by days
             $weeklySchedule = $this->formatWeeklySchedule($schedules, $weekStart, $calendarEvents);
 

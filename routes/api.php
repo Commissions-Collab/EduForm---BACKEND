@@ -1,8 +1,10 @@
 <?php
 
 use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\AttendancePDFController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Admin\MonthlyAttendanceController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -82,6 +84,17 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/schedule/{scheduleId}/attendance-history', 'getAttendanceHistory');
             Route::get('/student/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
         });
+
+        /**
+         * Controller for Monthly Attendance
+         */
+
+        Route::controller(MonthlyAttendanceController::class)->group(function () {
+            Route::get('/sections/{sectionId}/monthly-attendance','getMonthlyAttendanceSummary');
+        });
+
+
+        Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
     });
 
     /**

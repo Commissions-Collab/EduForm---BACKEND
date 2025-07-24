@@ -123,4 +123,9 @@ return [
         'store' => env('APP_MAINTENANCE_STORE', 'database'),
     ],
 
+    'school_name' => env('SCHOOL_NAME', 'SCHOOL_NAME'),
+    'school_address' => env('SCHOOL_ADDRESS', 'School Address'),
+    'school_phone' => env('SCHOOL_PHONE', 'Phone Number'),
+    'school_email' => env('SCHOOL_EMAIL', 'school@email.com'),
+
 ];
