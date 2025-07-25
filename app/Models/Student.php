@@ -60,6 +60,11 @@ class Student extends Model
         return $this->hasMany(AttendanceSummary::class);
     }
 
+    public function grades()
+    {
+        return $this->hasMany(Grade::class, 'student_id', 'user_id');
+    }
+
     // Helper methods
     public function fullName()
     {

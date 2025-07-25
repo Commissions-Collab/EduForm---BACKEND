@@ -1,5 +1,5 @@
 <?php
-
+use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
 use App\Http\Controllers\Admin\StudentApprovalController;
@@ -95,6 +95,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
 
         Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
+
+        Route::controller(AcademicRecordsController::class)->group(function () {
+            Route::get('/academic-records/filter-options', 'getFilterOptions');
+        });
     });
 
     /**

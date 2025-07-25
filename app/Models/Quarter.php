@@ -28,6 +28,10 @@ class Quarter extends Model
         return $this->hasMany(Attendance::class);
     }
 
+    public function grades() {
+        return $this->hasMany(Grade::class);
+    }
+
     public function getDurationInDays()
     {
         return Carbon::parse($this->start_date)->diffInDays(Carbon::parse($this->end_date)) + 1;
