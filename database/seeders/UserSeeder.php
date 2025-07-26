@@ -23,8 +23,13 @@ class UserSeeder extends Seeder
             'email_verified_at' => now(),
         ]);
 
+        User::factory()->teacher()->count(1)->create([
+            'email' => 'registrar@gmail.com',
+            'password' => Hash::make('password'),
+        ]);
+
         // Create additional users that will be used by teachers and students
-        User::factory()->teacher()->count(20)->create();
+        User::factory()->teacher()->count(19)->create();
         User::factory()->student()->count(200)->create();
     }
 }

@@ -32,6 +32,10 @@ class AcademicYear extends Model
         return $this->hasMany(Section::class);
     }
 
+    public function quarters() {
+        return $this->hasMany(Quarter::class);
+    }
+
     public function teacherSubjects()
     {
         return $this->hasMany(TeacherSubject::class);
@@ -60,6 +64,10 @@ class AcademicYear extends Model
     public function attendanceSummaries()
     {
         return $this->hasMany(AttendanceSummary::class);
+    }
+
+    public function enrollments () {
+        return $this->hasMany(Enrollment::class);
     }
 
     // Scopes

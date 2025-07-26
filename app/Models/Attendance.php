@@ -39,6 +39,12 @@ class Attendance extends Model
         return $this->belongsTo(Student::class);
     }
 
+    public function quarter()
+    {
+        return $this->belongsTo(Quarter::class);
+    }
+
+
     public function schedule()
     {
         return $this->belongsTo(Schedule::class);
@@ -84,7 +90,7 @@ class Attendance extends Model
     public function scopeForMonth($query, $month, $year)
     {
         return $query->whereMonth('attendance_date', $month)
-                    ->whereYear('attendance_date', $year);
+            ->whereYear('attendance_date', $year);
     }
 
     public function scopeForDateRange($query, $startDate, $endDate)

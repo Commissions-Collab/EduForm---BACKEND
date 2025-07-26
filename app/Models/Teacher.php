@@ -47,6 +47,13 @@ class Teacher extends Model
                     ->withTimestamps();
     }
 
+    public function getSubjectsForYear($academicYearId)
+    {
+        return $this->subjects()
+                    ->wherePivot('academic_year_id', $academicYearId)
+                    ->get();
+    }
+
     public function schedules()
     {
         return $this->hasMany(Schedule::class);

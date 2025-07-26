@@ -17,4 +17,8 @@ class Enrollment extends Model
     public function section() {
        return $this->belongsTo(Section::class, 'section_id');
     }
+
+    public function academicYear () {
+      return $this->belongsTo(AcademicYear::class);
+    }
 }

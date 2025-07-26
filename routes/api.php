@@ -1,11 +1,14 @@
 <?php
-
+use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\AttendancePDFController;
+use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\SuperAdmin\ScheduleController;
 use App\Http\Controllers\SuperAdmin\SectionController;
 use App\Http\Controllers\SuperAdmin\TeacherController;
+use App\Http\Controllers\Admin\MonthlyAttendanceController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use Illuminate\Http\Request;
@@ -97,9 +100,36 @@ Route::middleware('auth:sanctum')->group(function () {
          * Controller for attendance management
          */
         Route::controller(AttendanceController::class)->group(function () {
-            Route::get('/subjects', 'getTeacherSubjects');
-            Route::post('/students', 'getStudentsForAttendance');
-            Route::post('/attendance/update', 'updateAttendace');
+            Route::get('/schedule/weekly', 'getWeeklySchedule');
+            Route::get('/schedule/{scheduleId}/students', 'getScheduleStudents');
+            Route::post('/attendance/update-individual', 'updateIndividualAttendance');
+            Route::post('/attendance/update-bulk', 'updateBulkAttendance');
+            Route::post('/attendance/update-all', 'updateAllStudentsAttendance');
+            Route::get('/schedule/{scheduleId}/attendance-history', 'getAttendanceHistory');
+            Route::get('/student/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
+        });
+
+        /**
+         * Controller for Monthly Attendance
+         */
+
+        Route::controller(MonthlyAttendanceController::class)->group(function () {
+            Route::get('/sections/{sectionId}/monthly-attendance','getMonthlyAttendanceSummary');
+        });
+
+
+        Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
+
+        Route::controller(AcademicRecordsController::class)->group(function () {
+            Route::get('/academic-records/filter-options', 'getFilterOptions');
+            Route::get('/academic-records/students-grade', 'getStudentsGrade');
+            Route::get('/academic-records/statistics', 'getGradeStatistics');
+            Route::put('/academic-records/update-grade', 'updateGrade');
+        });
+
+        Route::controller(PromotionReportController::class)->group(function () {
+            Route::get('/promotion-reports/statistics', 'getPromotionReportStatistics');
+            Route::get('/promotion-reports/filters', 'getPromotionFilterOptions');
         });
     });
 
