@@ -7,6 +7,7 @@ use App\Http\Controllers\SuperAdmin\ScheduleController;
 use App\Http\Controllers\SuperAdmin\SectionController;
 use App\Http\Controllers\SuperAdmin\TeacherController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
+use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -50,18 +51,25 @@ Route::middleware('auth:sanctum')->group(function () {
         //display
         Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
 
-        Route::post('/admin/schedule', [ScheduleController::class, 'createTeacherSchedule']);
-        Route::post('/admin/section', [SectionController::class, 'createSections']);
+
+        //create
         Route::post('/admin/teacher', [TeacherController::class, 'teacherRegistration']);
+        Route::post('/admin/section',[SectionController::class,'createSections']);
+        Route::post('/admin/year_level', [Year_levelsController::class,'createYearLevel']);
+        Route::post('/admin/schedule', [ScheduleController::class,'createTeacherSchedule']);
+
 
         //update 
         Route::put('/admin/teachers/{id}record', [TeacherController::class, 'updateTeacherRecord']);
-        Route::put('/admin/teachers/{id}/advisory', [TeacherController::class, 'updateClassAdvisory']);
-        Route::put('/admin/teachers/{id}/subject', [TeacherController::class, 'updateTeachersSubject']);
+        Route::put('/admin/section{id}',[SectionController::class,'updateSection']);
         Route::put('/admin/student/{id}', [UserManagementController::class, 'updateStudent']);
+        Route::post('/admin/schedule{id}', [ScheduleController::class,'createTeacherSchedule']);
+
         //delete
         Route::delete('/admin/teachers/{id}', [TeacherController::class, 'deleteTeacher']);
         Route::delete('/admin/student/{id}', [UserManagementController::class, 'deleteStudent']);
+        Route::delete('/admin/year_level/{id}', [Year_levelsController::class, 'deleteYearLevel']);
+        Route::delete('/admin/section{id}',[SectionController::class,'deleteSection']);
     });
 
     /**

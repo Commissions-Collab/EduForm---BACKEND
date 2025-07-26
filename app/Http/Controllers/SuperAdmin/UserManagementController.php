@@ -28,17 +28,29 @@ class UserManagementController extends Controller
         }
 
         $validated = $request -> validate([
-            'LRN' =>  ['required','string','max:12',Rule::unique('students')->ignore($students->id),],
+            'lrn' =>  ['required','string','max:12',Rule::unique('students')->ignore($students->id),],
+            'section_id' =>'required|exists:sections,id',
+            'student_id' => 'required|string|max:255',
             'first_name' => 'required|string|max:255',
             'middle_name' => 'nullable|string|max:255',
             'last_name' => 'required|string|max:255',
             'birthday' => 'required|date',
             'gender' => ['required', Rule::enum(Gender::class)],
-            'parents_fullname' => 'nullable|string|max:255',
+            'address' => 'required|string|max:255',
+            'phone' =>'required|string|max:255',
+
+            // Parent/Guardian Information
+            'parent_guardian_name' => 'nullable|string|max:255',
             'relationship_to_student' => 'nullable|string|max:255',
-            'parents_number' => 'nullable|string|max:15',
-            'parents_email' => 'nullable|email',
-            'image' => 'nullable|image|mimes:jpg,png,jpeg,tmp' // tmp is for testing only
+            'parent_guardian_phone' => 'nullable|string|max:15',
+            'parent_guardian_email' => 'nullable|email',
+
+             // Student Photo
+            'image' => 'nullable|image|mimes:jpg,png,jpeg,tmp', // tmp is for testing only
+
+            'enrollment_date' => 'required|string|max:255',
+            'enrollment_status' => 'required|string|max:255'
+
         ]);
 
         $students -> update($validated);

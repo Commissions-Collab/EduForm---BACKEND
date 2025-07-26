@@ -16,12 +16,7 @@ class Section extends Model
         'name',
         'capacity'
     ];
-<<<<<<< HEAD
     
-  
-=======
->>>>>>> 65a4355cc081de12f75e6f2d79f68b03e53bdf2d
-
     // Relationships
     public function yearLevel()
     {

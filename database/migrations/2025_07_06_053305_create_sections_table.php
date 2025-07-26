@@ -18,7 +18,7 @@ return new class extends Migration
             $table->string('name'); // e.g., "Section A", "Section B"
             $table->integer('capacity')->default(40);
             $table->timestamps();
-            $table->softDeletes();
+            $table->softDeletes(); 
 
             // One section name per year level per academic year
             $table->unique(['year_level_id', 'academic_year_id', 'name'], 'unique_section_per_year');

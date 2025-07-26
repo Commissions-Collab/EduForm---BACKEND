@@ -84,8 +84,4 @@ class Schedule extends Model
     {
         return $query->where('day_of_week', $day);
     }
-    public function section()
-    {
-        return $this->belongsTo(Section::class,'section_id');
-    }
 }
