@@ -66,6 +66,10 @@ class AcademicYear extends Model
         return $this->hasMany(AttendanceSummary::class);
     }
 
+    public function enrollments () {
+        return $this->hasMany(Enrollment::class);
+    }
+
     // Scopes
     public function scopeCurrent($query)
     {

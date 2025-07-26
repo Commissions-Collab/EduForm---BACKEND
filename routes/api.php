@@ -98,6 +98,9 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::controller(AcademicRecordsController::class)->group(function () {
             Route::get('/academic-records/filter-options', 'getFilterOptions');
+            Route::get('/academic-records/students-grade', 'getStudentsGrade');
+            Route::get('/academic-records/statistics', 'getGradeStatistics');
+            Route::put('/academic-records/update-grade', 'updateGrade');
         });
     });
 
