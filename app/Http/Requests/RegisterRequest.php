@@ -39,7 +39,7 @@ class RegisterRequest extends FormRequest
             'relationship_to_student' => 'nullable|string|max:255',
             'parents_number' => 'nullable|string|max:15|unique:students,parents_number',
             'parents_email' => 'nullable|email|unique:students,parents_email',
-            'image' => 'nullable|image|mimes:jpg,png,jpeg'
+            'image' => 'nullable|image|mimes:jpg,png,jpeg,tmp' // tmp is for testing only
         ];
     }
 }

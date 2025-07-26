@@ -11,12 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('sections', function (Blueprint $table) {
+        Schema::create('subjects', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('admin_id')->constrained('users'); // Super Admin
-            $table->foreignId('year_level_id')->constrained('year_levels');
             $table->string('name');
+            $table->string('code')->unique(); // e.g., "MATH101", "ENG101"
+            $table->text('description')->nullable();
+            $table->integer('units')->default(1);
+            $table->boolean('is_active')->default(true);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -25,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('sections');
+        Schema::dropIfExists('subjects');
     }
 };

@@ -11,11 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('year_levels', function (Blueprint $table) {
+        Schema::create('academic_years', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('admin_id')->constrained('users'); // Super Admin
-            $table->string('name');
+            $table->string('name'); // e.g., "2024-2025"
+            $table->date('start_date');
+            $table->date('end_date');
+            $table->boolean('is_current')->default(false);
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
@@ -24,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('year_levels');
+        Schema::dropIfExists('academic_years');
     }
 };

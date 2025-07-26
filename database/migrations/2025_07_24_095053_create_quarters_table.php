@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('subjects', function (Blueprint $table) {
+        Schema::create('quarters', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->foreignId('advisor_id')->constrained('users');
+            $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
+            $table->enum('name', ['1st Quarter', '2nd Quarter', '3rd Quarter', '4th Quarter']); 
+            $table->date('start_date');
+            $table->date('end_date');
+
             $table->timestamps();
         });
     }
@@ -24,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('subjects');
+        Schema::dropIfExists('quarters');
     }
 };

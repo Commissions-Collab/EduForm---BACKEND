@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -16,10 +17,12 @@ class YearLevelFactory extends Factory
      */
     public function definition(): array
     {
+        static $gradeNumber = 1;
+        
         return [
-            'name' => $this->faker->unique()->randomElement([
-                'Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'
-            ]),
+            'name' => "Grade {$gradeNumber}",
+            'code' => "G{$gradeNumber}",
+            'sort_order' => $gradeNumber++,
         ];
     }
 }

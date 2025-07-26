@@ -11,16 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('schedules', function (Blueprint $table) {
+        Schema::create('teacher_subjects', function (Blueprint $table) {
             $table->id();
-            $table->enum('day', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
-            $table->time('start_time');
-            $table->time('end_time');
+            $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
             $table->foreignId('subject_id')->constrained('subjects')->onDelete('cascade');
-            $table->foreignId('teacher_id')->constrained('teachers');
-            $table->foreignId('year_level_id')->constrained('year_levels');
-            $table->foreignId('admin_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
             $table->timestamps();
+
+            // One teacher can teach same subject only once per academic year
+            $table->unique(['teacher_id', 'subject_id', 'academic_year_id'], 'unique_teacher_subject_year');
         });
     }
 
@@ -29,6 +28,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('schedules');
+        Schema::dropIfExists('teacher_subjects');
     }
 };

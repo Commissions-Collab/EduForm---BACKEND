@@ -1,6 +1,11 @@
 <?php
-
+use App\Http\Controllers\Admin\AcademicRecordsController;
+use App\Http\Controllers\Admin\AttendanceController;
+use App\Http\Controllers\Admin\AttendancePDFController;
+use App\Http\Controllers\Admin\PromotionReportController;
+use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Admin\MonthlyAttendanceController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -32,7 +37,7 @@ Route::post('/login', [AuthController::class, 'login']);
  */
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
-    
+
     /**
      * Super admin routes
      * These routes are accessible only to users with the 'super_admin' role.
@@ -44,19 +49,66 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
+        Route::post('/admin/schedule', [UserManagementController::class, 'createTeacherSchedule']);
     });
-    
+
     /**
      * Teacher routes
      * These routes are accessible only to users with the 'teacher' role.
      */
-    Route::middleware('role:teacher')->group(function () {
+    Route::middleware('role:teacher')->prefix('/teacher')->group(function () {
         // Teacher only routes
-        Route::get('/teacher/dashboard', function () {
+        Route::get('/dashboard', function () {
             return response()->json(['message' => 'Teacher Dashboard']);
         });
+
+        /**
+         * Controller for students access request
+         */
+        Route::controller(StudentApprovalController::class)->group(function () {
+            Route::get('/students/approved', 'index');
+            Route::get('/students/pending', 'pending');
+            Route::get('/students/rejected', 'rejected');
+            Route::put('/student-requests/{id}/approve', 'approvedStudents');
+            Route::put('/student-requests/{id}/reject', 'rejectApproval');
+        });
+
+        /**
+         * Controller for attendance management
+         */
+        Route::controller(AttendanceController::class)->group(function () {
+            Route::get('/schedule/weekly', 'getWeeklySchedule');
+            Route::get('/schedule/{scheduleId}/students', 'getScheduleStudents');
+            Route::post('/attendance/update-individual', 'updateIndividualAttendance');
+            Route::post('/attendance/update-bulk', 'updateBulkAttendance');
+            Route::post('/attendance/update-all', 'updateAllStudentsAttendance');
+            Route::get('/schedule/{scheduleId}/attendance-history', 'getAttendanceHistory');
+            Route::get('/student/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
+        });
+
+        /**
+         * Controller for Monthly Attendance
+         */
+
+        Route::controller(MonthlyAttendanceController::class)->group(function () {
+            Route::get('/sections/{sectionId}/monthly-attendance','getMonthlyAttendanceSummary');
+        });
+
+
+        Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
+
+        Route::controller(AcademicRecordsController::class)->group(function () {
+            Route::get('/academic-records/filter-options', 'getFilterOptions');
+            Route::get('/academic-records/students-grade', 'getStudentsGrade');
+            Route::get('/academic-records/statistics', 'getGradeStatistics');
+            Route::put('/academic-records/update-grade', 'updateGrade');
+        });
+
+        Route::controller(PromotionReportController::class)->group(function () {
+            Route::get('/promotion-reports/statistics', 'getPromotionReportStatistics');
+            Route::get('/promotion-reports/filters', 'getPromotionFilterOptions');
+        });
     });
-    
 
     /**
      * Student routes

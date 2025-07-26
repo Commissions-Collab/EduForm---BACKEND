@@ -14,10 +14,15 @@ return new class extends Migration
         Schema::create('teachers', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->string('name');
-            $table->foreignId('is_advisor_id')->constrained('sections');
-            $table->foreignId('subject_id')->constrained('subjects');
+            $table->string('employee_id')->unique();
+            $table->string('first_name');
+            $table->string('middle_name')->nullable();
+            $table->string('last_name');
+            $table->string('phone')->nullable();
+            $table->date('hire_date')->nullable();
+            $table->enum('employment_status', ['active', 'inactive', 'terminated'])->default('active');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

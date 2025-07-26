@@ -29,7 +29,7 @@ return new class extends Migration
             $table->string('parents_number', 15);
             $table->string('parents_email')->nullable();
             $table->string('image');
-            $table->enum('status', ['pending', 'accepted', 'rejected'])->default('pending');
+            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
             $table->timestamps();
         });
     }
