@@ -2,6 +2,7 @@
 use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
+use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
@@ -101,6 +102,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/academic-records/students-grade', 'getStudentsGrade');
             Route::get('/academic-records/statistics', 'getGradeStatistics');
             Route::put('/academic-records/update-grade', 'updateGrade');
+        });
+
+        Route::controller(PromotionReportController::class)->group(function () {
+            Route::get('/promotion-reports/statistics', 'getPromotionReportStatistics');
+            Route::get('/promotion-reports/filters', 'getPromotionFilterOptions');
         });
     });
 
