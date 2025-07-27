@@ -47,6 +47,10 @@ class Teacher extends Model
                     ->withTimestamps();
     }
 
+    public function bookInventories () {
+        return $this->hasMany(BookInventory::class);
+    }
+
     public function getSubjectsForYear($academicYearId)
     {
         return $this->subjects()

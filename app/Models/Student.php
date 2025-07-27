@@ -69,6 +69,10 @@ class Student extends Model
         return $this->hasMany(Enrollment::class);
     }
 
+    public function studentBorrowBooks() {
+        return $this->hasMany(StudentBorrowBook::class);
+    }
+
     // Helper methods
     public function fullName()
     {

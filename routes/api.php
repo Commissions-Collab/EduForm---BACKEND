@@ -2,6 +2,7 @@
 use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
+use App\Http\Controllers\Admin\BookManagementController;
 use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Api\AuthController;
@@ -108,6 +109,11 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/promotion-reports/statistics', 'getPromotionReportStatistics');
             Route::get('/promotion-reports/filters', 'getPromotionFilterOptions');
         });
+
+        Route::get('/book-management/filter-options', [BookManagementController::class, 'getFilterOptions']);
+        Route::post('/book-management/distribute-books', [BookManagementController::class, 'distributeBooks']);
+        Route::put('/book-management/return-book/{id}', [BookManagementController::class, 'returnBook']);
+        Route::apiResource('/book-management', BookManagementController::class);
     });
 
     /**

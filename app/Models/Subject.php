@@ -34,8 +34,8 @@ class Subject extends Model
     public function teachers()
     {
         return $this->belongsToMany(Teacher::class, 'teacher_subjects')
-                    ->withPivot('academic_year_id')
-                    ->withTimestamps();
+            ->withPivot('academic_year_id')
+            ->withTimestamps();
     }
 
     public function schedules()
@@ -52,6 +52,12 @@ class Subject extends Model
     {
         return $this->hasMany(AttendanceSummary::class);
     }
+
+    public function bookInventories()
+    {
+        return $this->hasMany(BookInventory::class);
+    }
+
 
     // Helper methods
     public function currentTeachers()
