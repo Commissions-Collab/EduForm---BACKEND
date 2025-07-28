@@ -9,6 +9,9 @@ use App\Http\Controllers\SuperAdmin\ScheduleController;
 use App\Http\Controllers\SuperAdmin\SectionController;
 use App\Http\Controllers\SuperAdmin\TeacherController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
+use App\Http\Controllers\SuperAdmin\AcademicYearController;
+use App\Http\Controllers\SuperAdmin\EnrollmentController;
+use App\Http\Controllers\SuperAdmin\StudentController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use Illuminate\Http\Request;
@@ -51,28 +54,63 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
-        //display
-        Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
+
+       Route::prefix('admin')->group(function () {
+
+            // Student Record Management
+            Route::controller(StudentController::class)->group(function () {
+                Route::get('/records', 'getStudentRecord');
+                Route::delete('/student/{id}', 'deleteStudent');
+                Route::put('/student/{id}', 'updateStudent');
+            });
+
+            // Teacher Management
+            Route::controller(TeacherController::class)->group(function () {
+                Route::post('/teacher', 'create');
+                Route::put('/teachers/{id}/record', 'update'); 
+                Route::delete('/teachers/{id}', 'delete');
+            });
+
+            // Year Level Management
+            Route::controller(Year_levelsController::class)->group(function () {
+                Route::post('/year_level', 'createYearLevel');
+                Route::delete('/year_level/{id}', 'deleteYearLevel');
+            });
+
+            // Schedule Management
+            Route::controller(ScheduleController::class)->group(function () {
+                Route::post('/schedule', 'createTeacherSchedule');
+                Route::put('/schedule/{id}', 'upateTeacherSchedule');
+            });
 
 
-        //create
-        Route::post('/admin/teacher', [TeacherController::class, 'teacherRegistration']);
-        Route::post('/admin/section',[SectionController::class,'createSections']);
-        Route::post('/admin/year_level', [Year_levelsController::class,'createYearLevel']);
-        Route::post('/admin/schedule', [ScheduleController::class,'createTeacherSchedule']);
+            //Section
+            Route::controller(SectionController::class)->group(function () {
+                        Route::post('/section', 'createSections');
+                        Route::put('/section/{id}', 'updateSection');
+                        Route::delete('/section/{id}', 'deleteSection');
+                    });
 
+            // Academic Year
+            Route::controller(AcademicYearController::class)->group(function () {
+                Route::get('/academic-years', 'index');
+                Route::post('/academic-years', 'store');
+                Route::get('/academic-years/{id}', 'show');
+                Route::put('/academic-years/{id}', 'update');
+                Route::delete('/academic-years/{id}', 'destroy');
+                Route::get('/academic-years-current', 'current');
+            });
 
-        //update 
-        Route::put('/admin/teachers/{id}record', [TeacherController::class, 'updateTeacherRecord']);
-        Route::put('/admin/section{id}',[SectionController::class,'updateSection']);
-        Route::put('/admin/student/{id}', [UserManagementController::class, 'updateStudent']);
-        Route::post('/admin/schedule{id}', [ScheduleController::class,'createTeacherSchedule']);
+            Route::controller(EnrollmentController::class)->group(function () {
+                Route::get('/enrollments', 'index');
+                Route::post('/enrollments', 'store');
+                Route::get('/enrollments/{id}', 'show');
+                Route::put('/enrollments/{id}', 'update');
+                Route::delete('/enrollments/{id}', 'destroy');
+            });
 
-        //delete
-        Route::delete('/admin/teachers/{id}', [TeacherController::class, 'deleteTeacher']);
-        Route::delete('/admin/student/{id}', [UserManagementController::class, 'deleteStudent']);
-        Route::delete('/admin/year_level/{id}', [Year_levelsController::class, 'deleteYearLevel']);
-        Route::delete('/admin/section{id}',[SectionController::class,'deleteSection']);
+        });
+     
     });
 
     /**

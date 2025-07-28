@@ -11,7 +11,19 @@ use PhpParser\Node\Expr\FuncCall;
 
 class TeacherController extends Controller
 {
-   public function teacherRegistration(Request $request){
+
+      public function index()
+    {
+         $teacher = Teacher::all();
+
+            return response()->json([
+                'status' => 'success',
+                'data' => $teacher
+            ]);
+       
+    }
+
+   public function create(Request $request){
     $validated = $request -> validate([
         'email' => 'required|email|unique:users,email',
         'password' => 'required|string|min:8|confirmed',
@@ -51,7 +63,7 @@ class TeacherController extends Controller
     ], 201);
    }
    // delete teacher rec
-   public function deleteTeacher(Request $request, $id){
+   public function delete(Request $request, $id){
     $teacher = Teacher::find($id);
 
     
@@ -66,7 +78,7 @@ class TeacherController extends Controller
    }
 
 
-   public function updateTeacherRecord(Request $request,$id){
+   public function update(Request $request,$id){
      $teacher = Teacher::find($id);
 
     if (!$teacher){

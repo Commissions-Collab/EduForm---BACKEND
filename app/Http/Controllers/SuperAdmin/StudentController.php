@@ -8,7 +8,7 @@ use Illuminate\Validation\Rule;
 use App\Models\Student;
 use Illuminate\Http\Request;
 
-class UserManagementController extends Controller
+class StudentController extends Controller
 {
     
     public function getStudentRecord()

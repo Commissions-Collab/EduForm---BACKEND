@@ -11,15 +11,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('academic_years', function (Blueprint $table) {
-            $table->id();
-            $table->string('name'); // e.g., "2024-2025"
-            $table->date('start_date');
-            $table->date('end_date');
-            $table->boolean('is_current')->default(false);
-            $table->timestamps();
-            $table->softDeletes();
-        });
+            Schema::create('academic_years', function (Blueprint $table) {
+                $table->id();
+                $table->string('name'); // e.g., "2024-2025"
+                $table->date('start_date');
+                $table->date('end_date');
+                $table->boolean('is_current')->default(false);
+                $table->timestamps();
+                $table->softDeletes();
+            });
     }
 
     /**
