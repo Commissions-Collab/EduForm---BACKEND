@@ -1,10 +1,12 @@
 <?php
+
 use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
 use App\Http\Controllers\Admin\BookManagementController;
 use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
+use App\Http\Controllers\Admin\WorkloadManagementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
@@ -92,7 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
          */
 
         Route::controller(MonthlyAttendanceController::class)->group(function () {
-            Route::get('/sections/{sectionId}/monthly-attendance','getMonthlyAttendanceSummary');
+            Route::get('/sections/{sectionId}/monthly-attendance', 'getMonthlyAttendanceSummary');
         });
 
 
@@ -114,6 +116,10 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/book-management/distribute-books', [BookManagementController::class, 'distributeBooks']);
         Route::put('/book-management/return-book/{id}', [BookManagementController::class, 'returnBook']);
         Route::apiResource('/book-management', BookManagementController::class);
+
+        Route::controller(WorkloadManagementController::class)->prefix('/workload')->group(function () {
+            Route::get('/', 'index');
+        });
     });
 
     /**
