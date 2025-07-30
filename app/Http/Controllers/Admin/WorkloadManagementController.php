@@ -7,12 +7,12 @@ use App\Models\AcademicYear;
 use App\Models\Quarter;
 use App\Models\Schedule;
 use App\Models\Section;
-use App\Models\Subject;
-use App\Models\Teacher;
 use App\Models\TeacherSubject;
 use Carbon\Carbon;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
 class WorkloadManagementController extends Controller
 {
@@ -73,13 +73,52 @@ class WorkloadManagementController extends Controller
         })
             ->count();
 
-        $teachingLoadDetails = $teacherSubjects->groupBy('section.name')->map(function ($subjects, $sectionName) use ($teacherId) {
+        $teachingLoadDetails = $teacherSubjects->groupBy('section.name')->map(function ($subjects, $sectionName) use ($teacherId, $academicYearId, $quarterId) {
             $section = $subjects->first()->section;
             $quarter = $subjects->first()->quarter;
 
             $studentCount = $section?->students->count() ?? 0;
             $subjectNames = $subjects->pluck('subject.name')->filter()->toArray();
-            $hasAdvisoryRole = optional($section->advisor)->teacher_id == $teacherId;
+            $hasAdvisoryRole = $section->currentAdvisor()?->id === $teacherId;
+
+            // Calculate hours per week for this section's subjects
+            $subjectIds = $subjects->pluck('subject_id')->unique()->filter()->values();
+            $sectionId = $section->id;
+
+            $hoursPerWeek = 0;
+            $subjectHours = [];
+
+            if (!$subjectIds->isEmpty() && $sectionId) {
+                // Get schedules for this section and subjects
+                $schedules = Schedule::where('teacher_id', $teacherId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('quarter_id', $quarterId)
+                    ->where('section_id', $sectionId)
+                    ->whereIn('subject_id', $subjectIds->toArray())
+                    ->with('subject:id,name')
+                    ->get();
+
+                // Calculate total hours and hours per subject
+                $schedulesBySubject = $schedules->groupBy('subject_id');
+
+                foreach ($schedulesBySubject as $subjectId => $subjectSchedules) {
+                    $subjectName = $subjectSchedules->first()->subject->name ?? 'Unknown';
+                    $subjectHoursTotal = 0;
+
+                    foreach ($subjectSchedules as $schedule) {
+                        try {
+                            $start = Carbon::createFromTimeString($schedule->start_time);
+                            $end = Carbon::createFromTimeString($schedule->end_time);
+                            $subjectHoursTotal += $end->floatDiffInHours($start);
+                        } catch (Exception $e) {
+                            Log::error('Error calculating schedule hours: ' . $e->getMessage());
+                        }
+                    }
+
+                    $subjectHours[$subjectName] = round(abs($subjectHoursTotal), 2);
+                    $hoursPerWeek += $subjectHoursTotal;
+                }
+            }
 
             return [
                 'section' => $sectionName,
@@ -89,6 +128,8 @@ class WorkloadManagementController extends Controller
                 'subjects_display' => implode(', ', $subjectNames),
                 'advisory_role' => $hasAdvisoryRole ? 'Yes' : 'No',
                 'quarter' => $quarter->name ?? null,
+                'hours_per_week' => round(abs($hoursPerWeek), 2),
+                'subject_hours' => $subjectHours, // Hours breakdown per subject
                 'is_current' => true
             ];
         })->values();
@@ -130,19 +171,35 @@ class WorkloadManagementController extends Controller
             $subjectCount = $teacherSubjects->pluck('subject_id')->unique()->count();
             $sectionCount = $teacherSubjects->pluck('section_id')->unique()->count();
 
-            // Get relevant schedules
-            $schedules = Schedule::where('teacher_id', $teacherId)
-                ->where('academic_year_id', $academicYearId)
-                ->whereIn('section_id', $teacherSubjects->pluck('section_id')->unique())
-                ->whereIn('subject_id', $teacherSubjects->pluck('subject_id')->unique())
-                ->get();
+            $sectionIds = $teacherSubjects->pluck('section_id')->unique()->filter()->values();
+            $subjectIds = $teacherSubjects->pluck('subject_id')->unique()->filter()->values();
 
-            // Calculate total hours per week
-            $hoursPerWeek = $schedules->sum(function ($schedule) {
-                $start = Carbon::createFromTimeString($schedule->start_time);
-                $end = Carbon::createFromTimeString($schedule->end_time);
-                return $end->floatDiffInHours($start); // accurate decimal
-            });
+            if ($sectionIds->isEmpty() || $subjectIds->isEmpty()) {
+                $hoursPerWeek = 0;
+            } else {
+                $schedules = Schedule::where('teacher_id', $teacherId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('quarter_id', $quarter->id)
+                    ->whereIn('section_id', $sectionIds->toArray())
+                    ->whereIn('subject_id', $subjectIds->toArray())
+                    ->get();
+
+                $hoursPerWeek = $schedules->sum(function ($schedule) {
+                    try {
+                        $start = Carbon::createFromTimeString($schedule->start_time);
+                        $end = Carbon::createFromTimeString($schedule->end_time);
+                        return $end->floatDiffInHours($start);
+                    } catch (Exception $e) {
+                        return 0;
+                    }
+                });
+            }
+
+            $today = Carbon::today();
+            $isCurrent = $today->between(
+                Carbon::parse($quarter->start_date),
+                Carbon::parse($quarter->end_date)
+            );
 
             $comparison[] = [
                 'quarter_id' => $quarter->id,
@@ -150,14 +207,15 @@ class WorkloadManagementController extends Controller
                 'total_students' => $totalStudents,
                 'subject_areas' => $subjectCount,
                 'class_sections' => $sectionCount,
-                'hours_per_week' => round($hoursPerWeek, 2),
-                'is_current' => $quarter->is_current ?? false
+                'hours_per_week' => round(abs($hoursPerWeek), 2),
+                'is_current' => $isCurrent,
+                'start_date' => $quarter->start_date,
+                'end_date' => $quarter->end_date
             ];
         }
 
         return $comparison;
     }
-
 
     private function getCurrentAcademicYear()
     {
@@ -167,9 +225,29 @@ class WorkloadManagementController extends Controller
 
     private function getCurrentQuarter($academicYearId)
     {
-        return Quarter::where('academic_year_id', $academicYearId)
-            ->orderBy('start_date')
+        $today = Carbon::today();
+
+        // First try to find a quarter where today falls between start_date and end_date
+        $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
             ->first();
+
+        // If no current quarter found, fall back to the one marked as current
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->where('is_current', true)
+                ->first();
+        }
+
+        // Final fallback to first quarter by start date
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->orderBy('start_date')
+                ->first();
+        }
+
+        return $currentQuarter;
     }
 
     private function getAvailableQuarters($academicYearId)

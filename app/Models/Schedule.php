@@ -57,6 +57,10 @@ class Schedule extends Model
         return $this->hasMany(Attendance::class);
     }
 
+    public function quarter() {
+        return $this->belongsTo(Quarter::class);
+    }
+
     public function scheduleExceptions()
     {
         return $this->hasMany(ScheduleException::class, '');

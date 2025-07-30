@@ -38,6 +38,10 @@ class Quarter extends Model
         return $this->hasMany(TeacherSubject::class);
     }
 
+    public function schedules() {
+        return $this->hasMany(Schedule::class);
+    }
+
     public function getDurationInDays()
     {
         return Carbon::parse($this->start_date)->diffInDays(Carbon::parse($this->end_date)) + 1;
