@@ -20,6 +20,9 @@ class StudentController extends Controller
         ]);
     }
 
+    
+
+
     public function updateStudent(Request $request,$id){
         $students = Student::find($id);
 
