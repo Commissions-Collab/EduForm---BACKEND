@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
 use App\Http\Controllers\Admin\BookManagementController;
+use App\Http\Controllers\Admin\CertificateController;
 use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Admin\WorkloadManagementController;
@@ -119,6 +120,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
         Route::controller(WorkloadManagementController::class)->prefix('/workload')->group(function () {
             Route::get('/', 'index');
+        });
+
+        Route::controller(CertificateController::class)->prefix('/certificate')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/preview/{type}/{studentId}/{quarterId?}', 'preview');
+            Route::get('/download/{type}/{studentId}/{quarterId?}', 'download');
+            Route::get('/print-all', 'printAll');
+            Route::get('/honor-roll/filter', 'filterHonorRoll');
         });
     });
 
