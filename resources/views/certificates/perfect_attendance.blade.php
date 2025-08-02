@@ -20,7 +20,7 @@
     <div class="certificate-box">
         <h1>Certificate of Perfect Attendance</h1>
         <p>This certificate is proudly presented to</p>
-        <div class="name">{{ $student->full_name }}</div>
+        <div class="name">{{ $student->fullName() }}</div>
         <p>for having <strong>100% attendance</strong> during the following quarter(s):</p>
         <h2>{{ $data['quarters'] }}</h2>
 

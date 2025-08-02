@@ -20,7 +20,7 @@
     <div class="certificate-box">
         <h1>Honor Roll Certificate</h1>
         <p>This certificate is awarded to</p>
-        <div class="name">{{ $student->full_name }}</div>
+        <div class="name">{{ $student->fullName() }}</div>
         <p>for achieving the distinction of</p>
         <h2>{{ $data['honor_type'] }}</h2>
         <p>with a general average of <strong>{{ $data['grade_average'] }}</strong> during {{ $data['quarter'] }}</p>
