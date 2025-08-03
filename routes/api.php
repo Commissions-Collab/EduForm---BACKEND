@@ -12,6 +12,9 @@ use App\Http\Controllers\Admin\StudentBmiController;
 use App\Http\Controllers\Admin\WorkloadManagementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
+use App\Http\Controllers\Student\DashboardController;
+use App\Http\Controllers\Student\GradeController;
+use App\Http\Controllers\Student\StudentAttendanceController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -146,10 +149,11 @@ Route::middleware('auth:sanctum')->group(function () {
      * Student routes
      * These routes are accessible only to users with the 'student' role.
      */
-    Route::middleware('role:student')->group(function () {
-        // Student only routes
-        Route::get('/student/dashboard', function () {
-            return response()->json(['message' => 'Student Dashboard']);
-        });
+    Route::middleware('role:student')->prefix('/student')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index']);
+        Route::get('/student-grade', [GradeController::class, 'getStudentGrade']);
+        Route::get('/student-grade/filter', [GradeController::class, 'quarterFilter']);
+        Route::get('/student-attendance', [StudentAttendanceController::class, 'attendanceRecords']);
+        Route::get('/student-attendance/filter', [StudentAttendanceController::class, 'attendanceMonthFilter']);
     });
 });

@@ -20,6 +20,6 @@ class StudentBorrowBook extends Model
     }
 
     public function bookInventory() {
-        return $this->belongsTo(BookInventory::class);
+        return $this->belongsTo(BookInventory::class, 'book_id');
     }
 }
