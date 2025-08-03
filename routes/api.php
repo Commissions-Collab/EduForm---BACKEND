@@ -5,8 +5,10 @@ use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
 use App\Http\Controllers\Admin\BookManagementController;
 use App\Http\Controllers\Admin\CertificateController;
+use App\Http\Controllers\Admin\ParentsConferenceController;
 use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
+use App\Http\Controllers\Admin\StudentBmiController;
 use App\Http\Controllers\Admin\WorkloadManagementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
@@ -129,6 +131,15 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/print-all', 'printAll');
             Route::get('/honor-roll/filter', 'filterHonorRoll');
         });
+
+        Route::controller(ParentsConferenceController::class)->prefix('/parents-conference')->group(function () {
+            Route::get('/dashboard', 'index');
+            Route::get('/student-data/{studentId}', 'showStudentProfile');
+            Route::get('/print-student-card/{studentId}', 'printStudentReportCard');
+            Route::get('/print-all-student-cards', 'printAllStudentReportCards');
+        });
+
+        Route::apiResource('/student-bmi', StudentBmiController::class);
     });
 
     /**

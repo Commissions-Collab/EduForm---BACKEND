@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Student extends Model
 {
-   use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'user_id',
@@ -65,11 +65,18 @@ class Student extends Model
         return $this->hasMany(Grade::class, 'student_id');
     }
 
-    public function enrollments() {
+    public function enrollments()
+    {
         return $this->hasMany(Enrollment::class);
     }
 
-    public function studentBorrowBooks() {
+    public function bmis()
+    {
+        return $this->hasMany(StudentBmi::class, 'student_id', 'user_id');
+    }
+
+    public function studentBorrowBooks()
+    {
         return $this->hasMany(StudentBorrowBook::class);
     }
 
@@ -87,13 +94,13 @@ class Student extends Model
     public function currentAttendanceRate($subjectId = null)
     {
         $query = $this->attendances()
-                      ->whereHas('schedule', function($q) {
-                          $currentYear = AcademicYear::where('is_current', true)->first();
-                          $q->where('academic_year_id', $currentYear?->id);
-                      });
+            ->whereHas('schedule', function ($q) {
+                $currentYear = AcademicYear::where('is_current', true)->first();
+                $q->where('academic_year_id', $currentYear?->id);
+            });
 
         if ($subjectId) {
-            $query->whereHas('schedule', function($q) use ($subjectId) {
+            $query->whereHas('schedule', function ($q) use ($subjectId) {
                 $q->where('subject_id', $subjectId);
             });
         }
@@ -109,5 +116,4 @@ class Student extends Model
     {
         return $query->where('enrollment_status', 'enrolled');
     }
-
 }

@@ -40,22 +40,29 @@ class Teacher extends Model
         return $this->hasMany(TeacherSubject::class);
     }
 
+    public function bmis()
+    {
+        return $this->hasMany(StudentBmi::class);
+    }
+
+
     public function subjects()
     {
         return $this->belongsToMany(Subject::class, 'teacher_subjects')
-                    ->withPivot('academic_year_id')
-                    ->withTimestamps();
+            ->withPivot('academic_year_id')
+            ->withTimestamps();
     }
 
-    public function bookInventories () {
+    public function bookInventories()
+    {
         return $this->hasMany(BookInventory::class);
     }
 
     public function getSubjectsForYear($academicYearId)
     {
         return $this->subjects()
-                    ->wherePivot('academic_year_id', $academicYearId)
-                    ->get();
+            ->wherePivot('academic_year_id', $academicYearId)
+            ->get();
     }
 
     public function schedules()
@@ -71,8 +78,8 @@ class Teacher extends Model
     public function advisedSections()
     {
         return $this->belongsToMany(Section::class, 'section_advisors')
-                    ->withPivot('academic_year_id')
-                    ->withTimestamps();
+            ->withPivot('academic_year_id')
+            ->withTimestamps();
     }
 
     public function attendances()

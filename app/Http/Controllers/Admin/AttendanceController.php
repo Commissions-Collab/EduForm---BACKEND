@@ -9,8 +9,6 @@ use App\Models\Attendance;
 use App\Models\Schedule;
 use App\Models\ScheduleException;
 use App\Models\Student;
-use App\Models\Subject;
-use App\Models\Teacher;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
