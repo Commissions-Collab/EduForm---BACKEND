@@ -32,4 +32,8 @@ class Grade extends Model
    public function quarter() {
       return $this->belongsTo(Quarter::class, 'quarter_id');
    }
+
+   public function academicYear() {
+      return $this->belongsTo(AcademicYear::class);
+   }
 }

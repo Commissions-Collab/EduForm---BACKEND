@@ -28,8 +28,24 @@ class Quarter extends Model
         return $this->hasMany(Attendance::class);
     }
 
-    public function grades() {
+    public function grades()
+    {
         return $this->hasMany(Grade::class);
+    }
+
+    public function teacherSubjects()
+    {
+        return $this->hasMany(TeacherSubject::class);
+    }
+
+    public function schedules()
+    {
+        return $this->hasMany(Schedule::class);
+    }
+
+    public function studentBmis()
+    {
+        return $this->hasMany(StudentBmi::class);
     }
 
     public function getDurationInDays()

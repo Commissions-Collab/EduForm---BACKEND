@@ -20,8 +20,6 @@ class AcademicYear extends Model
     protected function casts(): array
     {
         return [
-            'start_date' => 'date',
-            'end_date' => 'date',
             'is_current' => 'boolean',
         ];
     }
@@ -32,7 +30,8 @@ class AcademicYear extends Model
         return $this->hasMany(Section::class);
     }
 
-    public function quarters() {
+    public function quarters()
+    {
         return $this->hasMany(Quarter::class);
     }
 
@@ -66,9 +65,21 @@ class AcademicYear extends Model
         return $this->hasMany(AttendanceSummary::class);
     }
 
-    public function enrollments () {
+    public function enrollments()
+    {
         return $this->hasMany(Enrollment::class);
     }
+
+    public function grades()
+    {
+        return $this->hasMany(Grade::class);
+    }
+
+    public function studentBmis()
+    {
+        return $this->hasMany(StudentBmi::class);
+    }
+
 
     // Scopes
     public function scopeCurrent($query)

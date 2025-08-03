@@ -9,10 +9,11 @@ class TeacherSubject extends Model
     protected $fillable = [
         'teacher_id',
         'subject_id',
-        'academic_year_id'
+        'section_id',
+        'academic_year_id',
+        'quarter_id'
     ];
 
-    // Relationships
     public function teacher()
     {
         return $this->belongsTo(Teacher::class);
@@ -23,8 +24,18 @@ class TeacherSubject extends Model
         return $this->belongsTo(Subject::class);
     }
 
+    public function section()
+    {
+        return $this->belongsTo(Section::class);
+    }
+
     public function academicYear()
     {
         return $this->belongsTo(AcademicYear::class);
+    }
+
+    public function quarter()
+    {
+        return $this->belongsTo(Quarter::class);
     }
 }

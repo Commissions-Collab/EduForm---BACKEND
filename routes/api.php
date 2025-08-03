@@ -1,11 +1,22 @@
 <?php
+
 use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
+use App\Http\Controllers\Admin\BookManagementController;
+use App\Http\Controllers\Admin\CertificateController;
+use App\Http\Controllers\Admin\ParentsConferenceController;
 use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
+use App\Http\Controllers\Admin\StudentBmiController;
+use App\Http\Controllers\Admin\WorkloadManagementController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
+use App\Http\Controllers\Student\AchievementsController;
+use App\Http\Controllers\Student\DashboardController;
+use App\Http\Controllers\Student\GradeController;
+use App\Http\Controllers\Student\HealthProfileController;
+use App\Http\Controllers\Student\StudentAttendanceController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -91,7 +102,7 @@ Route::middleware('auth:sanctum')->group(function () {
          */
 
         Route::controller(MonthlyAttendanceController::class)->group(function () {
-            Route::get('/sections/{sectionId}/monthly-attendance','getMonthlyAttendanceSummary');
+            Route::get('/sections/{sectionId}/monthly-attendance', 'getMonthlyAttendanceSummary');
         });
 
 
@@ -108,16 +119,46 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/promotion-reports/statistics', 'getPromotionReportStatistics');
             Route::get('/promotion-reports/filters', 'getPromotionFilterOptions');
         });
+
+        Route::get('/book-management/filter-options', [BookManagementController::class, 'getFilterOptions']);
+        Route::post('/book-management/distribute-books', [BookManagementController::class, 'distributeBooks']);
+        Route::put('/book-management/return-book/{id}', [BookManagementController::class, 'returnBook']);
+        Route::apiResource('/book-management', BookManagementController::class);
+
+        Route::controller(WorkloadManagementController::class)->prefix('/workload')->group(function () {
+            Route::get('/', 'index');
+        });
+
+        Route::controller(CertificateController::class)->prefix('/certificate')->group(function () {
+            Route::get('/', 'index');
+            Route::get('/preview/{type}/{studentId}/{quarterId?}', 'preview');
+            Route::get('/download/{type}/{studentId}/{quarterId?}', 'download');
+            Route::get('/print-all', 'printAll');
+            Route::get('/honor-roll/filter', 'filterHonorRoll');
+        });
+
+        Route::controller(ParentsConferenceController::class)->prefix('/parents-conference')->group(function () {
+            Route::get('/dashboard', 'index');
+            Route::get('/student-data/{studentId}', 'showStudentProfile');
+            Route::get('/print-student-card/{studentId}', 'printStudentReportCard');
+            Route::get('/print-all-student-cards', 'printAllStudentReportCards');
+        });
+
+        Route::apiResource('/student-bmi', StudentBmiController::class);
     });
 
     /**
      * Student routes
      * These routes are accessible only to users with the 'student' role.
      */
-    Route::middleware('role:student')->group(function () {
-        // Student only routes
-        Route::get('/student/dashboard', function () {
-            return response()->json(['message' => 'Student Dashboard']);
-        });
+    Route::middleware('role:student')->prefix('/student')->group(function () {
+        Route::get('/dashboard', [DashboardController::class, 'index']);
+        Route::get('/student-grade', [GradeController::class, 'getStudentGrade']);
+        Route::get('/student-grade/filter', [GradeController::class, 'quarterFilter']);
+        Route::get('/student-attendance', [StudentAttendanceController::class, 'attendanceRecords']);
+        Route::get('/student-attendance/filter', [StudentAttendanceController::class, 'attendanceMonthFilter']);
+        Route::get('/health-profile', [HealthProfileController::class, 'getHealthProfileData']);
+        Route::get('/certificates', [AchievementsController::class, 'getCertificates']);
+        Route::get('/certificate/download', [AchievementsController::class, 'downloadCertificate']);
     });
 });

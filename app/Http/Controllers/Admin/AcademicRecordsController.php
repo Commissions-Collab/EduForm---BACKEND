@@ -53,8 +53,9 @@ class AcademicRecordsController extends Controller
             ], 404);
         }
 
-        $allSubjects = Subject::whereHas('teacherSubjects', function ($query) use ($request) {
+        $allSubjects = Subject::whereHas('teacherSubjects', function ($query) use ($request, $teacher) {
             $query->where('academic_year_id', $request->academic_year_id);
+            $query->where('teacher_id', $teacher->id);
         })->get();
 
         $teacherSubjects = TeacherSubject::where('teacher_id', $teacher->id)
