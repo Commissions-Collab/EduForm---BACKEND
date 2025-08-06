@@ -82,16 +82,17 @@ class StudentApprovalController extends Controller
             // Create student profile
             $student = Student::create([
                 'user_id' => $user->id,
-                'LRN' => $studentRequest->LRN,
+                'lrn' => $studentRequest->LRN,
+                'student_id' => 'S' . rand(10000000, 99999999),
                 'first_name' => $studentRequest->first_name,
                 'middle_name' => $studentRequest->middle_name,
                 'last_name' => $studentRequest->last_name,
                 'birthday' => $studentRequest->birthday,
                 'gender' => $studentRequest->gender,
-                'parents_fullname' => $studentRequest->parents_fullname,
+                'parent_guardian_name' => $studentRequest->parents_fullname,
                 'relationship_to_student' => $studentRequest->relationship_to_student,
-                'parents_number' => $studentRequest->parents_number,
-                'parents_email' => $studentRequest->parents_email,
+                'parent_guardian_phone' => $studentRequest->parents_number,
+                'parent_guardian_email' => $studentRequest->parents_email,
                 'image' => $studentRequest->image,
             ]);
 

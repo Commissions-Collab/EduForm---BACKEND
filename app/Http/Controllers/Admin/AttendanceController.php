@@ -156,10 +156,13 @@ class AttendanceController extends Controller
                 'attendances' => function ($query) use ($scheduleId, $attendanceDate) {
                     $query->where('schedule_id', $scheduleId)
                         ->where('attendance_date', $attendanceDate);
-                }
+                },
+                'enrollments'
             ])
-                ->where('section_id', $schedule->section_id)
-                ->where('enrollment_status', 'enrolled')
+                ->whereHas('enrollments', function ($query) use ($schedule) {
+                    $query->where('enrollment_status', 'enrolled')
+                        ->where('section_id', $schedule->section_id);
+                })
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get();
@@ -397,15 +400,16 @@ class AttendanceController extends Controller
         try {
             $teacher = Auth::user()->teacher;
 
-           // Verify schedule belongs to teacher
+            // Verify schedule belongs to teacher
             $schedule = AttendanceHelper::verifyScheduleAccess($request->schedule_id, $teacher->id);
 
             if (!$schedule) {
                 return $this->errorResponse('Schedule not found or accesss denied', 404);
             }
-
-            $students = Student::where('section_id', $schedule->section_id)
-                ->where('enrollment_status', 'enrolled')
+            $students = Student::with(['enrollments'])->whereHas('enrollments', function ($query) use ($schedule) {
+                $query->where('enrollment_status', 'enrolled')
+                    ->where('section_id', $schedule->section_id);
+            })
                 ->get();
 
             $academicYear = $this->getCurrentAcademicYear();

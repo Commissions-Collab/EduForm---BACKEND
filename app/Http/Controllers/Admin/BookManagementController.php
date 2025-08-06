@@ -179,10 +179,18 @@ class BookManagementController extends Controller
     {
         $sections = Section::all(['id', 'name']);
 
-        // Optional: only fetch if section_id is provided
         $students = [];
+
         if ($request->has('section_id')) {
-            $students = Student::where('section_id', $request->section_id)
+            $students = Student::whereHas('enrollments', function ($query) use ($request) {
+                $query->where('section_id', $request->section_id)
+                    ->where('enrollment_status', 'enrolled');
+
+                // Optional: Add academic_year_id filter if needed
+                if ($request->has('academic_year_id')) {
+                    $query->where('academic_year_id', $request->academic_year_id);
+                }
+            })
                 ->select('id', 'first_name', 'middle_name', 'last_name')
                 ->get()
                 ->map(function ($student) {
@@ -204,6 +212,7 @@ class BookManagementController extends Controller
             'books' => $availableBooks,
         ]);
     }
+
 
 
     public function distributeBooks(Request $request)

@@ -23,12 +23,12 @@ class MonthlyAttendanceController extends Controller
         try {
             $teacher = Auth::user()->teacher;
             $academicYear = $this->getCurrentAcademicYear($request->get('academic_year_id'));
-            
+
             // Check advisor access first
             $accessError = $this->requireAdvisorAccess($sectionId, $teacher->id, $academicYear->id);
             if ($accessError) {
                 return $accessError;
-            }   
+            }
 
             // Get section advisor with full details
             $sectionAdvisor = $this->getSectionAdvisorWithDetails($sectionId, $teacher->id, $academicYear->id);
@@ -44,19 +44,19 @@ class MonthlyAttendanceController extends Controller
 
             // Get all students in the section (already loaded via relationship)
             $students = $section->students;
-            
+
             // Get all schedules for this section
             $schedules = $this->getSectionSchedules($sectionId, $academicYear->id);
-            
+
             // Get attendance data for the month
             $attendanceData = $this->getMonthlyAttendanceData($sectionId, $academicYear->id, $startDate, $endDate);
-            
+
             // Generate calendar days for the month
             $calendarDays = $this->generateCalendarDays($startDate, $endDate);
-            
+
             // Process daily attendance summary for each student
             $studentSummaries = $this->processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays);
-            
+
             return response()->json([
                 'success' => true,
                 'data' => [
@@ -92,7 +92,6 @@ class MonthlyAttendanceController extends Controller
                     'class_statistics' => $this->calculateClassStatistics($studentSummaries)
                 ]
             ]);
-
         } catch (\Exception $e) {
             return $this->errorResponse('Failed to fetch monthly attendance summary', 500, $e->getMessage());
         }
@@ -124,8 +123,10 @@ class MonthlyAttendanceController extends Controller
     private function getMonthlyAttendanceData($sectionId, $academicYearId, $startDate, $endDate)
     {
         return Attendance::with(['student', 'schedule.subject'])
-            ->whereHas('student', function($query) use ($sectionId) {
-                $query->where('section_id', $sectionId);
+            ->whereHas('student.enrollments', function ($query) use ($sectionId, $academicYearId) {
+                $query->where('section_id', $sectionId)
+                    ->where('enrollment_status', 'enrolled')
+                    ->where('academic_year_id', $academicYearId);
             })
             ->where('academic_year_id', $academicYearId)
             ->whereBetween('attendance_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
@@ -140,7 +141,7 @@ class MonthlyAttendanceController extends Controller
     {
         $days = [];
         $current = $startDate->copy();
-        
+
         while ($current <= $endDate) {
             $days[] = [
                 'date' => $current->format('Y-m-d'),
@@ -151,7 +152,7 @@ class MonthlyAttendanceController extends Controller
             ];
             $current->addDay();
         }
-        
+
         return $days;
     }
 
@@ -161,7 +162,7 @@ class MonthlyAttendanceController extends Controller
     private function processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays): array
     {
         $studentSummaries = [];
-        
+
         foreach ($students as $student) {
             $dailyAttendance = [];
             $monthlySummary = [
@@ -170,17 +171,17 @@ class MonthlyAttendanceController extends Controller
                 'absent_days' => 0,
                 'no_class_days' => 0
             ];
-            
+
             foreach ($calendarDays as $day) {
                 $dateKey = $day['date'];
                 $dayStatus = $this->calculateDayStatus(
-                    $student->id, 
-                    $dateKey, 
-                    $schedules, 
-                    $attendanceData, 
+                    $student->id,
+                    $dateKey,
+                    $schedules,
+                    $attendanceData,
                     $day['is_weekend'] || $day['is_holiday']
                 );
-                
+
                 $dailyAttendance[] = [
                     'date' => $dateKey,
                     'day' => $day['day'],
@@ -188,11 +189,11 @@ class MonthlyAttendanceController extends Controller
                     'is_weekend' => $day['is_weekend'],
                     'is_holiday' => $day['is_holiday']
                 ];
-                
+
                 // Update monthly summary
                 $monthlySummary[$dayStatus . '_days']++;
             }
-            
+
             $studentSummaries[] = [
                 'student' => [
                     'id' => $student->id,
@@ -208,7 +209,7 @@ class MonthlyAttendanceController extends Controller
                 'attendance_rate' => $this->calculateAttendanceRate($monthlySummary)
             ];
         }
-        
+
         return $studentSummaries;
     }
 
@@ -221,20 +222,20 @@ class MonthlyAttendanceController extends Controller
         if ($isNonSchoolDay) {
             return 'no_class';
         }
-        
+
         // Get attendance records for this student on this date
         $dayAttendance = $attendanceData[$studentId][$date] ?? collect();
-        
+
         // If no attendance records, assume absent (if there should be classes)
         if ($dayAttendance->isEmpty()) {
             return $schedules->isNotEmpty() ? 'absent' : 'no_class';
         }
-        
+
         // Count attendance by status
         $totalSubjects = $schedules->count();
         $attendedSubjects = $dayAttendance->whereIn('status', ['present', 'late'])->count();
         $recordedSubjects = $dayAttendance->count();
-        
+
         // Determine day status based on attendance
         if ($attendedSubjects == $totalSubjects && $recordedSubjects == $totalSubjects) {
             return 'present'; // Present for all subjects
@@ -261,14 +262,14 @@ class MonthlyAttendanceController extends Controller
     private function calculateAttendanceRate($summary): float
     {
         $totalSchoolDays = $summary['present_days'] + $summary['half_days'] + $summary['absent_days'];
-        
+
         if ($totalSchoolDays == 0) {
             return 0;
         }
-        
+
         // Calculate rate: present days + (half days * 0.5)
         $attendanceScore = $summary['present_days'] + ($summary['half_days'] * 0.5);
-        
+
         return round(($attendanceScore / $totalSchoolDays) * 100, 2);
     }
 
