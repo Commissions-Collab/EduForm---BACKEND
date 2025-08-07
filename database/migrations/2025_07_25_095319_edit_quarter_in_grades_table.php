@@ -12,7 +12,11 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('grades', function (Blueprint $table) {
+<<<<<<< HEAD
             // $table->dropColumn('quarter_id');
+=======
+            //$table->dropColumn('quarter_id');
+>>>>>>> 76be60adbbfe1417f06f65ca7f410753532916c8
             $table->foreignId('quarter_id')->after('subject_id')->constrained('quarters');
         });
     }

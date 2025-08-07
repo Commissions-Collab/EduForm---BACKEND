@@ -16,7 +16,7 @@ class Section extends Model
         'name',
         'capacity'
     ];
-
+    
     // Relationships
     public function yearLevel()
     {

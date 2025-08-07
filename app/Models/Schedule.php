@@ -12,6 +12,7 @@ class Schedule extends Model
 
     protected $fillable = [
         'subject_id',
+        'section_id',
         'teacher_id',
         'section_id',
         'academic_year_id',
