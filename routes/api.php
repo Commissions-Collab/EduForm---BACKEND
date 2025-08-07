@@ -15,17 +15,17 @@ use App\Http\Controllers\SuperAdmin\ScheduleController;
 use App\Http\Controllers\SuperAdmin\SectionController;
 use App\Http\Controllers\SuperAdmin\TeacherController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
-<<<<<<< HEAD
+
 use App\Http\Controllers\Student\AchievementsController;
 use App\Http\Controllers\Student\DashboardController;
 use App\Http\Controllers\Student\GradeController;
 use App\Http\Controllers\Student\HealthProfileController;
 use App\Http\Controllers\Student\StudentAttendanceController;
-=======
+
 use App\Http\Controllers\SuperAdmin\AcademicYearController;
 use App\Http\Controllers\SuperAdmin\EnrollmentController;
 use App\Http\Controllers\SuperAdmin\StudentController;
->>>>>>> 76be60adbbfe1417f06f65ca7f410753532916c8
+
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use Illuminate\Http\Request;
