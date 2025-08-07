@@ -25,7 +25,8 @@ use App\Http\Controllers\Student\StudentAttendanceController;
 use App\Http\Controllers\SuperAdmin\AcademicYearController;
 use App\Http\Controllers\SuperAdmin\EnrollmentController;
 use App\Http\Controllers\SuperAdmin\StudentController;
-
+use App\Http\Controllers\SuperAdmin\StudentRecordController;
+use App\Http\Controllers\SuperAdmin\UserController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use Illuminate\Http\Request;
@@ -72,17 +73,19 @@ Route::middleware('auth:sanctum')->group(function () {
        Route::prefix('admin')->group(function () {
 
             // Student Record Management
-            Route::controller(StudentController::class)->group(function () {
+            Route::controller(StudentRecordController::class)->group(function () {
                 Route::get('/records', 'getStudentRecord');
                 Route::delete('/student/{id}', 'deleteStudent');
                 Route::put('/student/{id}', 'updateStudent');
             });
 
             // Teacher Management
-            Route::controller(TeacherController::class)->group(function () {
-                Route::post('/teacher', 'create');
-                Route::put('/teachers/{id}/record', 'update'); 
-                Route::delete('/teachers/{id}', 'delete');
+            Route::controller(UserController::class)->group(function () {
+                Route::post('/teacher', 'createTeacher');
+                Route::get('/teacher/all', 'indexTeacher');
+                Route::put('/teacher/{id}/record','updateTeacher'); 
+                Route::delete('/teacher/{id}', 'deleteTeacher');
+                Route::post('/schedule', 'createTeacherSchedule');
             });
 
             // Year Level Management
@@ -90,13 +93,6 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/year_level', 'createYearLevel');
                 Route::delete('/year_level/{id}', 'deleteYearLevel');
             });
-
-            // Schedule Management
-            Route::controller(ScheduleController::class)->group(function () {
-                Route::post('/schedule', 'createTeacherSchedule');
-                Route::put('/schedule/{id}', 'upateTeacherSchedule');
-            });
-
 
             //Section
             Route::controller(SectionController::class)->group(function () {

@@ -8,7 +8,7 @@ use Illuminate\Validation\Rule;
 use App\Models\Student;
 use Illuminate\Http\Request;
 
-class StudentController extends Controller
+class StudentRecordController extends Controller
 {
     
     public function getStudentRecord()
@@ -19,9 +19,6 @@ class StudentController extends Controller
             'students' => $students
         ]);
     }
-
-    
-
 
     public function updateStudent(Request $request,$id){
         $students = Student::find($id);
@@ -62,22 +59,21 @@ class StudentController extends Controller
         'message' => 'Student updated successfully',
         'student' => $students
     ]);
-
     }
 
     public function deleteStudent($id)
-{
-    $student = Student::find($id);
+    {
+        $student = Student::find($id);
 
-    if (!$student) {
-        return response()->json(['message' => 'Student not found'], 404);
+        if (!$student) {
+            return response()->json(['message' => 'Student not found'], 404);
+        }
+
+        $student->delete();
+
+        return response()->json([
+            'message' => 'Student deleted successfully',
+            'student' => $student
+        ]);
     }
-
-    $student->delete();
-
-    return response()->json([
-        'message' => 'Student deleted successfully',
-        'student' => $student
-    ]);
-}
 }
