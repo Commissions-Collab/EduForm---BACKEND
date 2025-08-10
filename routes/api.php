@@ -21,7 +21,7 @@ use App\Http\Controllers\Student\DashboardController;
 use App\Http\Controllers\Student\GradeController;
 use App\Http\Controllers\Student\HealthProfileController;
 use App\Http\Controllers\Student\StudentAttendanceController;
-
+use App\Http\Controllers\SuperAdmin\AcademicCalendarController;
 use App\Http\Controllers\SuperAdmin\AcademicYearController;
 use App\Http\Controllers\SuperAdmin\EnrollmentController;
 use App\Http\Controllers\SuperAdmin\StudentController;
@@ -109,6 +109,15 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::put('/academic-years/{id}', 'update');
                 Route::delete('/academic-years/{id}', 'destroy');
                 Route::get('/academic-years-current', 'current');
+            });
+
+            Route::controller(AcademicCalendarController::class)->group(function () {
+                Route::get('/academic-calendar', 'index');
+                Route::post('/academic-calendar', 'store');
+                Route::get('/academic-calendar/{id}', 'show');
+                Route::put('/academic-calendar/{id}', 'update');
+                Route::delete('/academic-calendar/{id}', 'destroy');
+                Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
             });
 
             Route::controller(EnrollmentController::class)->group(function () {
