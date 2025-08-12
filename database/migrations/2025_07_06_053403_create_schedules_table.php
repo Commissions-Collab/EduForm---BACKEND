@@ -17,6 +17,7 @@ return new class extends Migration
             $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
             $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
             $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
+            $table->foreignId('quarter_id')->constrained('quarters')->onDelete('cascade');
 
             // Schedule Details
             $table->enum('day_of_week', ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
@@ -31,9 +32,12 @@ return new class extends Migration
             $table->softDeletes();
 
             // Constraints to prevent conflicts
-            $table->unique(['section_id', 'day_of_week', 'start_time', 'academic_year_id'], 'unique_section_schedule');
-            $table->unique(['teacher_id', 'day_of_week', 'start_time', 'academic_year_id'], 'unique_teacher_schedule');
-            $table->unique(['room', 'day_of_week', 'start_time', 'academic_year_id'], 'unique_room_schedule');
+            // $table->unique(['section_id', 'day_of_week', 'start_time', 'academic_year_id'], 'unique_section_schedule');
+            // $table->unique(['teacher_id', 'day_of_week', 'start_time', 'academic_year_id'], 'unique_teacher_schedule');
+            // $table->unique(['room', 'day_of_week', 'start_time', 'academic_year_id'], 'unique_room_schedule');
+
+            $table->index(['academic_year_id', 'quarter_id'], 'idx_schedule_academic_quarter');
+            $table->index(['section_id', 'academic_year_id'], 'idx_schedule_section_academic');
         });
     }
 

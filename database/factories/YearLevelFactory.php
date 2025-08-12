@@ -2,27 +2,23 @@
 
 namespace Database\Factories;
 
-use App\Models\User;
+use App\Models\YearLevel;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\YearLevel>
- */
 class YearLevelFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = YearLevel::class;
+
     public function definition(): array
     {
-        static $gradeNumber = 1;
-        
+        $grades = ['Grade 7', 'Grade 8', 'Grade 9', 'Grade 10', 'Grade 11', 'Grade 12'];
+        $grade = $this->faker->randomElement($grades);
+        $code = 'G' . str_replace('Grade ', '', $grade);
+
         return [
-            'name' => "Grade {$gradeNumber}",
-            'code' => "G{$gradeNumber}",
-            'sort_order' => $gradeNumber++,
+            'name' => $grade,
+            'code' => $code,
+            'sort_order' => (int) str_replace('Grade ', '', $grade),
         ];
     }
 }

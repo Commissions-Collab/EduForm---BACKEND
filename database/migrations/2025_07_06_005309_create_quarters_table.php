@@ -19,6 +19,8 @@ return new class extends Migration
             $table->date('end_date');
 
             $table->timestamps();
+
+             $table->unique(['academic_year_id', 'name'], 'unique_quarter_per_academic_year');
         });
     }
 

@@ -3,37 +3,33 @@
 namespace Database\Seeders;
 
 use App\Models\AcademicYear;
-use Carbon\Carbon;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class AcademicYearSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        // Create previous years
-        AcademicYear::create([
-            'name' => '2022-2023',
-            'start_date' => Carbon::create(2022, 8, 15),
-            'end_date' => Carbon::create(2023, 5, 30),
-            'is_current' => false,
-        ]);
-
+        // 2023-2024 Academic Year
         AcademicYear::create([
             'name' => '2023-2024',
-            'start_date' => Carbon::create(2023, 8, 15),
-            'end_date' => Carbon::create(2024, 5, 30),
+            'start_date' => '2023-06-01',
+            'end_date' => '2024-05-31',
             'is_current' => false,
         ]);
 
-        // Current academic year
+        // 2024-2025 Academic Year
         AcademicYear::create([
             'name' => '2024-2025',
-            'start_date' => Carbon::create(2024, 8, 15),
-            'end_date' => Carbon::create(2025, 5, 30),
+            'start_date' => '2024-06-01',
+            'end_date' => '2025-05-31',
+            'is_current' => false,
+        ]);
+
+        // 2025-2026 Academic Year (Current)
+        AcademicYear::create([
+            'name' => '2025-2026',
+            'start_date' => '2025-06-01',
+            'end_date' => '2026-05-31',
             'is_current' => true,
         ]);
     }

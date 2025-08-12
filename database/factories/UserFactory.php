@@ -2,48 +2,56 @@
 
 namespace Database\Factories;
 
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\User>
- */
 class UserFactory extends Factory
 {
+    protected $model = User::class;
+
     public function definition(): array
     {
         return [
-            'email' => fake()->unique()->safeEmail(),
-            'email_verified_at' => fake()->optional(0.8)->dateTime(),
-            'password' => Hash::make('password'),
-            'role' => fake()->randomElement(['teacher', 'student']),
-            'otp' => fake()->optional(0.1)->numberBetween(100000, 999999),
-            'is_verified' => fake()->boolean(85),
+            'email' => $this->faker->unique()->safeEmail(),
+            'email_verified_at' => now(),
+            'password' => Hash::make('password'), // Default password
+            'role' => $this->faker->randomElement(['super_admin', 'teacher', 'student']),
+            'otp' => null,
+            'is_verified' => 1,
             'remember_token' => Str::random(10),
         ];
     }
 
-    public function superAdmin()
+    public function superAdmin(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'role' => 'super_admin',
-            'email' => 'admin@school.com',
-            'is_verified' => true,
         ]);
     }
 
-    public function teacher()
+    public function teacher(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'role' => 'teacher',
+            'password' => 'password'
         ]);
     }
 
-    public function student()
+    public function student(): static
     {
-        return $this->state(fn (array $attributes) => [
+        return $this->state(fn(array $attributes) => [
             'role' => 'student',
+            'password' => 'password'
+        ]);
+    }
+
+    public function unverified(): static
+    {
+        return $this->state(fn(array $attributes) => [
+            'email_verified_at' => null,
+            'is_verified' => 0,
         ]);
     }
 }

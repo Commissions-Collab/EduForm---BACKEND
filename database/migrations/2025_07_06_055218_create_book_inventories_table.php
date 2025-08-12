@@ -13,11 +13,12 @@ return new class extends Migration
     {
         Schema::create('book_inventories', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
             $table->string('title');
-            $table->date('issued_date');
-            $table->date('returned_date')->nullable();
-            $table->enum('status', ['issued', 'returned']);
+            // Add new columns
+            $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
+            $table->foreignId('subject_id')->constrained('subjects');
+            $table->integer('total_copies')->default(0);
+            $table->integer('available')->default(0);
             $table->timestamps();
         });
     }

@@ -14,7 +14,6 @@ return new class extends Migration
         Schema::create('students', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained('users')->onDelete('cascade');
-            $table->foreignId('section_id')->constrained('sections')->onDelete('cascade');
             $table->string('lrn', 12)->unique(); // Learner Reference Number
             $table->string('student_id')->unique(); // School student ID
             $table->string('first_name');
@@ -33,10 +32,6 @@ return new class extends Migration
 
             // Student Photo
             $table->string('photo')->nullable();
-
-            // Enrollment Information
-            $table->date('enrollment_date');
-            $table->enum('enrollment_status', ['enrolled', 'transferred', 'graduated', 'dropped'])->default('enrolled');
 
             $table->timestamps();
             $table->softDeletes();

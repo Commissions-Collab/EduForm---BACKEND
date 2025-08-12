@@ -16,6 +16,7 @@ return new class extends Migration
             $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->foreignId('schedule_id')->constrained('schedules')->onDelete('cascade');
             $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
+            $table->foreignId('quarter_id')->constrained('quarters')->onDelete('cascade');
 
             // Attendance Details
             $table->date('attendance_date');
@@ -31,8 +32,10 @@ return new class extends Migration
             $table->timestamps();
             $table->softDeletes();
 
+            $table->index(['attendance_date', 'academic_year_id'], 'idx_attendance_date_academic');
+            $table->index(['student_id', 'quarter_id'], 'idx_attendance_student_quarter');
             // Ensure one attendance record per student per class per date
-            $table->unique(['student_id', 'schedule_id', 'attendance_date'], 'unique_student_class_attendance');
+            // $table->unique(['student_id', 'schedule_id', 'attendance_date'], 'unique_student_class_attendance');
         });
     }
 

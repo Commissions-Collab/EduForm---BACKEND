@@ -28,8 +28,10 @@ class UserSeeder extends Seeder
             'password' => Hash::make('password'),
         ]);
 
-        // Create additional users that will be used by teachers and students
-        User::factory()->teacher()->count(19)->create();
-        User::factory()->student()->count(200)->create();
+        // Create sample teacher users
+        User::factory(10)->teacher()->create();
+
+        // Create sample student users  
+        User::factory(100)->student()->create();
     }
 }

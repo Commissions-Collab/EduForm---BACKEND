@@ -4,7 +4,7 @@ namespace Database\Factories;
 
 use App\Models\AcademicYear;
 use App\Models\Section;
-use App\Models\Subject;
+use App\Models\SectionAdvisor;
 use App\Models\Teacher;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -13,11 +13,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class SectionAdvisorFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = SectionAdvisor::class;
+
     public function definition(): array
     {
         return [

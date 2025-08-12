@@ -48,11 +48,6 @@ class Subject extends Model
         return $this->hasManyThrough(Attendance::class, Schedule::class);
     }
 
-    public function attendanceSummaries()
-    {
-        return $this->hasMany(AttendanceSummary::class);
-    }
-
     public function bookInventories()
     {
         return $this->hasMany(BookInventory::class);

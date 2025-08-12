@@ -6,6 +6,7 @@ use App\Helpers\AttendanceHelper;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\Attendance;
+use App\Models\Quarter;
 use App\Models\Schedule;
 use App\Models\ScheduleException;
 use App\Models\Student;
@@ -331,6 +332,7 @@ class AttendanceController extends Controller
 
 
             $academicYear = $this->getCurrentAcademicYear();
+            $currentQuarter = $this->getCurrentQuarter($academicYear->id);
             $updatedAttendances = [];
 
             DB::beginTransaction();
@@ -345,6 +347,7 @@ class AttendanceController extends Controller
                     ],
                     [
                         'academic_year_id' => $academicYear->id,
+                        'quarter_id' => $currentQuarter->id,
                         'status' => $attendanceData['status'],
                         'time_in' => $attendanceData['time_in'] ?? null,
                         'time_out' => $attendanceData['time_out'] ?? null,
@@ -413,6 +416,7 @@ class AttendanceController extends Controller
                 ->get();
 
             $academicYear = $this->getCurrentAcademicYear();
+            $currentQuarter = $this->getCurrentQuarter($academicYear->id);
             $updatedAttendances = [];
 
             DB::beginTransaction();
@@ -427,6 +431,7 @@ class AttendanceController extends Controller
                     ],
                     [
                         'academic_year_id' => $academicYear->id,
+                        'quarter_id' => $currentQuarter->id,
                         'status' => $request->status,
                         'time_in' => $request->time_in,
                         'time_out' => $request->time_out,
@@ -566,6 +571,33 @@ class AttendanceController extends Controller
         }
 
         return AcademicYear::where('is_current', true)->firstOrFail();
+    }
+
+    private function getCurrentQuarter($academicYearId)
+    {
+        $today = Carbon::today();
+
+        // First try to find a quarter where today falls between start_date and end_date
+        $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
+            ->first();
+
+        // If no current quarter found, fall back to the one marked as current
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->where('is_current', true)
+                ->first();
+        }
+
+        // Final fallback to first quarter by start date
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->orderBy('start_date')
+                ->first();
+        }
+
+        return $currentQuarter;
     }
 
     private function getWeekCalendarEvents($academicYearId, $weekStart, $weekEnd)
