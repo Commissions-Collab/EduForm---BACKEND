@@ -15,9 +15,9 @@ return new class extends Migration
             $table->id();
             $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->foreignId('book_id')->constrained('book_inventories')->onDelete('cascade');
-            $table->date('issued_date');
-            $table->date('returned_date')->nullable();
-            $table->date('expected_return_date')->nullable();
+            $table->date('borrow_date');
+            $table->date('due_date')->nullable();
+            $table->date('return_date')->nullable();
             $table->enum('status', ['issued', 'returned', 'overdue'])->default('issued');
             $table->timestamps();
         });

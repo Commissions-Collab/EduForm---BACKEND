@@ -14,11 +14,10 @@ return new class extends Migration
         Schema::create('book_inventories', function (Blueprint $table) {
             $table->id();
             $table->string('title');
-            // Add new columns
-            $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
-            $table->foreignId('subject_id')->constrained('subjects');
+            $table->string('author')->nullable();
+            $table->string('category')->nullable();
             $table->integer('total_copies')->default(0);
-            $table->integer('available')->default(0);
+            $table->integer('available_quantity')->default(0);
             $table->timestamps();
         });
     }

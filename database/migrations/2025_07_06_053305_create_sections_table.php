@@ -16,6 +16,8 @@ return new class extends Migration
             $table->foreignId('year_level_id')->constrained('year_levels')->onDelete('cascade');
             $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
             $table->string('name'); // e.g., "Section A", "Section B"
+            $table->string('strand')->nullable();
+            $table->string('room')->nullable();
             $table->integer('capacity')->default(40);
             $table->timestamps();
             $table->softDeletes(); 
