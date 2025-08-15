@@ -12,9 +12,9 @@ class StudentBorrowBook extends Model
     protected $fillable = [
         'student_id',
         'book_id',
-        'issued_date',
-        'expected_return_date',
-        'returned_date',
+        'borrow_date',
+        'due_date',
+        'return_date',
         'status'
     ];
 

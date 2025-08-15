@@ -14,7 +14,9 @@ class Section extends Model
         'year_level_id',
         'academic_year_id',
         'name',
-        'capacity'
+        'capacity',
+        'strand',
+        'room'
     ];
     
     // Relationships

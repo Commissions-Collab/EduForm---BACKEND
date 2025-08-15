@@ -14,58 +14,32 @@ class StudentBorrowBookFactory extends Factory
 
     public function definition(): array
     {
-        $issuedDate = $this->faker->dateTimeBetween('-6 months', 'now');
-        $expectedReturnDate = Carbon::parse($issuedDate)->addWeeks(2); // 2 weeks borrowing period
+        $borrowDate = $this->faker->dateTimeBetween('-6 months', 'now');
+        $dueDate = Carbon::parse($borrowDate)->addWeeks(2); // Standard 2-week borrowing period
         $status = $this->faker->randomElement(['issued', 'returned', 'overdue']);
-        
-        $returnedDate = null;
+
+        $returnDate = null;
+
+        // If status is 'returned', generate a return date
         if ($status === 'returned') {
-            $returnedDate = $this->faker->dateTimeBetween($issuedDate, $expectedReturnDate->addDays(7));
+            // Book could be returned on time or slightly late
+            $returnDate = $this->faker->dateTimeBetween($borrowDate, $dueDate->copy()->addDays(5));
+        }
+
+        // If status is 'overdue', ensure the due date is in the past and there's no return date
+        if ($status === 'overdue') {
+            $borrowDate = $this->faker->dateTimeBetween('-4 months', '-3 weeks');
+            $dueDate = Carbon::parse($borrowDate)->addWeeks(2);
+            $returnDate = null; // An overdue book has not been returned
         }
 
         return [
             'student_id' => Student::factory(),
             'book_id' => BookInventory::factory(),
-            'issued_date' => $issuedDate->format('Y-m-d'),
-            'returned_date' => $returnedDate ? $returnedDate->format('Y-m-d') : null,
-            'expected_return_date' => $expectedReturnDate->format('Y-m-d'),
+            'borrow_date' => $borrowDate->format('Y-m-d'),
+            'due_date' => $dueDate->format('Y-m-d'),
+            'return_date' => $returnDate ? $returnDate->format('Y-m-d') : null,
             'status' => $status,
         ];
-    }
-
-    public function issued(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'status' => 'issued',
-            'returned_date' => null,
-        ]);
-    }
-
-    public function returned(): static
-    {
-        return $this->state(function (array $attributes) {
-            $issuedDate = Carbon::parse($attributes['issued_date'] ?? $this->faker->dateTimeBetween('-2 months', '-1 month'));
-            $expectedReturn = Carbon::parse($attributes['expected_return_date'] ?? $issuedDate->copy()->addWeeks(2));
-            
-            return [
-                'status' => 'returned',
-                'returned_date' => $this->faker->dateTimeBetween($issuedDate, $expectedReturn->addDays(3))->format('Y-m-d'),
-            ];
-        });
-    }
-
-    public function overdue(): static
-    {
-        return $this->state(function (array $attributes) {
-            $issuedDate = $this->faker->dateTimeBetween('-3 months', '-1 month');
-            $expectedReturn = Carbon::parse($issuedDate)->addWeeks(2);
-            
-            return [
-                'issued_date' => $issuedDate->format('Y-m-d'),
-                'expected_return_date' => $expectedReturn->format('Y-m-d'),
-                'status' => 'overdue',
-                'returned_date' => null,
-            ];
-        });
     }
 }

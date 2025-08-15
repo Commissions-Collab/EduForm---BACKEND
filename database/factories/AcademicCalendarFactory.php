@@ -12,13 +12,16 @@ class AcademicCalendarFactory extends Factory
 
     public function definition(): array
     {
+        $type = $this->faker->randomElement(['regular', 'holiday', 'exam', 'no_class', 'special_event']);
+        $isClassDay = !in_array($type, ['holiday', 'no_class']);
+
         return [
             'academic_year_id' => AcademicYear::factory(),
-            'date' => $this->faker->dateTimeBetween('2023-06-01', '2026-05-31')->format('Y-m-d'),
-            'type' => $this->faker->randomElement(['regular', 'holiday', 'exam', 'no_class', 'special_event']),
+            'date' => $this->faker->dateTimeBetween('2024-08-01', '2025-05-31')->format('Y-m-d'),
+            'type' => $type,
             'title' => $this->faker->optional()->sentence(3),
             'description' => $this->faker->optional()->paragraph(),
-            'is_class_day' => $this->faker->boolean(80), // 80% chance of being a class day
+            'is_class_day' => $isClassDay,
         ];
     }
 
@@ -33,7 +36,6 @@ class AcademicCalendarFactory extends Factory
                 'New Year\'s Day',
                 'Rizal Day',
                 'Labor Day',
-                'EDSA Revolution Anniversary'
             ]),
         ]);
     }

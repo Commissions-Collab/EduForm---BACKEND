@@ -25,7 +25,7 @@ class BookManagementController extends Controller
             ->withCount([
                 'studentBorrowBooks as overdue_count' => function ($query) use ($today) {
                     $query->where('status', '!=', 'returned')
-                        ->whereDate('expected_return_date', '<', $today);
+                        ->whereDate('return_date', '<', $today);
                 }
             ])
             ->latest()
@@ -53,17 +53,18 @@ class BookManagementController extends Controller
 
             $request->validate([
                 'title' => ['required', 'string', 'max:255'],
-                'subject_id' => ['required', 'exists:subjects,id'],
+                'author' => ['required', 'string'],
+                'category' => ['required', 'string'],
                 'total_copies' => ['required', 'numeric'],
-                'available' => ['required', 'numeric'],
+                'available_quantity' => ['required', 'numeric'],
             ]);
 
             BookInventory::create([
                 'title' => $request->input('title'),
-                'teacher_id' => $teacher->id,
-                'subject_id' => $request->input('subject_id'),
+                'author' => $request->input('author'),
+                'category' => $request->input('category'),
                 'total_copies' => $request->input('total_copies'),
-                'available' => $request->input('available'),
+                'available_quantity' => $request->input('available_quantity'),
             ]);
 
             DB::commit();
@@ -124,17 +125,18 @@ class BookManagementController extends Controller
 
             $request->validate([
                 'title' => ['required', 'string', 'max:255'],
-                'subject_id' => ['required', 'exists:subjects,id'],
+                'author' => ['required', 'string'],
+                'category' => ['required', 'string'],
                 'total_copies' => ['required', 'numeric'],
-                'available' => ['required', 'numeric'],
+                'available_quantity' => ['required', 'numeric'],
             ]);
 
             $book->update([
                 'title' => $request->input('title'),
-                'teacher_id' => $teacher->id,
-                'subject_id' => $request->input('subject_id'),
+                'author' => $request->input('author'),
+                'category' => $request->input('category'),
                 'total_copies' => $request->input('total_copies'),
-                'available' => $request->input('available'),
+                'available_quantity' => $request->input('available_quantity'),
             ]);
 
             DB::commit();
@@ -202,8 +204,8 @@ class BookManagementController extends Controller
                 ->values();
         }
 
-        $availableBooks = BookInventory::where('available', '>', 0)
-            ->select('id', 'title', 'available')
+        $availableBooks = BookInventory::where('available_quantity', '>', 0)
+            ->select('id', 'title', 'available_quantity')
             ->get();
 
         return response()->json([
@@ -220,8 +222,9 @@ class BookManagementController extends Controller
         $request->validate([
             'student_id' => ['required', 'exists:students,id'],
             'book_id' => ['required', 'exists:book_inventories,id'],
-            'issued_date' => ['required', 'date'],
-            'expected_return_date' => ['required', 'date'],
+            'borrow_date' => ['required', 'date'],
+            'due_date' => ['required', 'date'],
+            'return_date' => ['required', 'date'],
             'status' => ['required', 'in:issued,returned,overdue'],
         ]);
 
@@ -230,7 +233,7 @@ class BookManagementController extends Controller
         try {
             $book = BookInventory::findOrFail($request->book_id);
 
-            if ($request->status === 'issued' && $book->available < 1) {
+            if ($request->status === 'issued' && $book->available_quantity < 1) {
                 return response()->json([
                     'success' => false,
                     'message' => 'No available copies to distribute.',
@@ -240,14 +243,15 @@ class BookManagementController extends Controller
             StudentBorrowBook::create([
                 'student_id' => $request->student_id,
                 'book_id' => $book->id,
-                'issued_date' => $request->issued_date,
-                'expected_return_date' => $request->expected_return_date,
+                'borrow_date' => $request->borrow_date,
+                'due_date' => $request->due_date,
+                'return_date' => $request->return_date,
                 'status' => $request->status
             ]);
 
             // Decrease available stock if book is being issued
             if ($request->status === 'issued') {
-                $book->decrement('available');
+                $book->decrement('available_quantity');
             }
 
             DB::commit();
@@ -280,12 +284,12 @@ class BookManagementController extends Controller
             }
 
             $studentBorrowBook->update([
-                'returned_date' => now(),
+                'return_date' => now(),
                 'status' => 'returned'
             ]);
 
             $book = BookInventory::findOrFail($studentBorrowBook->book_id);
-            $book->increment('available');
+            $book->increment('available_quantity');
 
             DB::commit();
 

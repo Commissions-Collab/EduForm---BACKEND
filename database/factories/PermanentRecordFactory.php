@@ -13,34 +13,20 @@ class PermanentRecordFactory extends Factory
 
     public function definition(): array
     {
+        $finalAverage = $this->faker->randomFloat(2, 70, 98);
+        $remarks = 'Promoted';
+        if ($finalAverage >= 90) {
+            $remarks = 'With Honors';
+        } elseif ($finalAverage < 75) {
+            $remarks = 'Retained';
+        }
+
         return [
             'student_id' => Student::factory(),
-            'school_year' => $this->faker->randomElement(['2023-2024', '2024-2025', '2025-2026']),
-            'final_average' => $this->faker->randomFloat(2, 75, 98),
-            'remarks' => $this->faker->optional()->randomElement([
-                'Promoted',
-                'Retained',
-                'Transferred',
-                'Completed',
-                'With Honors'
-            ]),
-            'validated_by' => User::factory()->teacher(),
+            'final_average' => $finalAverage,
+            'remarks' => $remarks,
+            // Correctly find an admin or teacher user to act as the validator
+            'validated_by' => User::whereIn('role', ['super_admin', 'teacher'])->inRandomOrder()->first()?->id ?? User::factory(),
         ];
-    }
-
-    public function withHonors(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'final_average' => $this->faker->randomFloat(2, 90, 98),
-            'remarks' => 'With Honors',
-        ]);
-    }
-
-    public function promoted(): static
-    {
-        return $this->state(fn (array $attributes) => [
-            'final_average' => $this->faker->randomFloat(2, 75, 89),
-            'remarks' => 'Promoted',
-        ]);
     }
 }

@@ -258,9 +258,7 @@ class AttendanceController extends Controller
 
 
             $academicYear = $this->getCurrentAcademicYear();
-
-            Log::debug($academicYear->id);
-            DB::beginTransaction();
+            $currentQuarter = $this->getCurrentQuarter($academicYear->id);
 
             // update or create attendance record
             $attendance = Attendance::updateOrCreate(
@@ -271,6 +269,7 @@ class AttendanceController extends Controller
                 ],
                 [
                     'academic_year_id' => $academicYear->id,
+                    'quarter_id' => $currentQuarter->id,
                     'status' => $request->status,
                     'time_in' => $request->time_in,
                     'time_out' => $request->time_out,
@@ -573,24 +572,33 @@ class AttendanceController extends Controller
         return AcademicYear::where('is_current', true)->firstOrFail();
     }
 
-    private function getCurrentQuarter($academicYearId)
+    private function getCurrentQuarter($academicYearId = null)
     {
         $today = Carbon::today();
 
-        // First try to find a quarter where today falls between start_date and end_date
+        // If no academicYearId passed, find the current academic year
+        if (!$academicYearId) {
+            $currentYear = AcademicYear::where('is_current', true)->first();
+            if (!$currentYear) {
+                return null; // No current academic year found
+            }
+            $academicYearId = $currentYear->id;
+        }
+
+        // Try by date range
         $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
             ->whereDate('start_date', '<=', $today)
             ->whereDate('end_date', '>=', $today)
             ->first();
 
-        // If no current quarter found, fall back to the one marked as current
+        // Fallback: if no match by date, get quarter marked current
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
                 ->where('is_current', true)
                 ->first();
         }
 
-        // Final fallback to first quarter by start date
+        // Final fallback: earliest quarter in the year
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
                 ->orderBy('start_date')
@@ -599,6 +607,7 @@ class AttendanceController extends Controller
 
         return $currentQuarter;
     }
+
 
     private function getWeekCalendarEvents($academicYearId, $weekStart, $weekEnd)
     {

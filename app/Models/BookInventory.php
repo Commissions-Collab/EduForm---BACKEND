@@ -11,10 +11,10 @@ class BookInventory extends Model
     
     protected $fillable = [
         'title',
-        'teacher_id',
-        'subject_id',
+        'author',
+        'category',
         'total_copies',
-        'available'
+        'available_quantity'
     ];
 
     public function teacher()

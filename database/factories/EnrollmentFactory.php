@@ -18,12 +18,16 @@ class EnrollmentFactory extends Factory
         return [
             'student_id' => Student::factory(),
             'academic_year_id' => AcademicYear::factory(),
+            // Corrected foreign key name from 'grade_level' to 'year_level_id'
             'grade_level' => YearLevel::factory(),
             'section_id' => Section::factory(),
             'enrollment_status' => $this->faker->randomElement(['enrolled', 'pending', 'transferred', 'dropped']),
         ];
     }
 
+    /**
+     * Indicate that the student is officially enrolled.
+     */
     public function enrolled(): static
     {
         return $this->state(fn (array $attributes) => [

@@ -27,12 +27,12 @@ class StudentBmiController extends Controller
         $quarterId = $request->quarter_id;
 
         // Step 1: Get all enrollments with user and student
-        $enrollments = Enrollment::with('user.student')
+        $enrollments = Enrollment::with('student')
             ->where('section_id', $sectionId)
             ->where('academic_year_id', $academicYearId)
             ->get();
 
-        $studentIds = $enrollments->pluck('user.id')->toArray();
+        $studentIds = $enrollments->pluck('id')->toArray();
 
         // Step 2: Fetch all BMI records for these students in this academic year & quarter
         $bmiRecords = StudentBmi::whereIn('student_id', $studentIds)
@@ -43,11 +43,11 @@ class StudentBmiController extends Controller
 
         // Step 3: Map data
         $students = $enrollments->map(function ($enrollment) use ($bmiRecords) {
-            $student = $enrollment->user->student;
+            $student = $enrollment->student;
             $bmi = $bmiRecords[$enrollment->student_id] ?? null;
 
             return [
-                'student_id' => $student->user_id,
+                'student_id' => $student->id,
                 'name' => $student->fullName(),
                 'height' => $bmi->height_cm ?? null,
                 'weight' => $bmi->weight_kg ?? null,

@@ -13,6 +13,7 @@ class Grade extends Model
       'student_id',
       'subject_id',
       'quarter_id',
+      'academic_year_id',
       'grade',
       'recorded_by'
    ];

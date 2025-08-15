@@ -16,6 +16,7 @@ class Schedule extends Model
         'teacher_id',
         'section_id',
         'academic_year_id',
+        'quarter_id',
         'day_of_week',
         'start_time',
         'end_time',

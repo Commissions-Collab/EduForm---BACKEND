@@ -17,11 +17,14 @@ class PromotionReportFactory extends Factory
         return [
             'student_id' => Student::factory(),
             'academic_year_id' => AcademicYear::factory(),
-            'final_average' => $this->faker->randomFloat(2, 75, 98),
+            'final_average' => $this->faker->randomFloat(2, 70, 98),
             'year_level_id' => YearLevel::factory(),
         ];
     }
 
+    /**
+     * Indicate that the student is promoted.
+     */
     public function promoted(): static
     {
         return $this->state(fn (array $attributes) => [
@@ -29,10 +32,13 @@ class PromotionReportFactory extends Factory
         ]);
     }
 
+    /**
+     * Indicate that the student is retained.
+     */
     public function retained(): static
     {
         return $this->state(fn (array $attributes) => [
-            'final_average' => $this->faker->randomFloat(2, 65, 74),
+            'final_average' => $this->faker->randomFloat(2, 65, 74.99),
         ]);
     }
 }
