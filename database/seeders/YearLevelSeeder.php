@@ -3,14 +3,10 @@
 namespace Database\Seeders;
 
 use App\Models\YearLevel;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class YearLevelSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         $yearLevels = [
@@ -22,8 +18,8 @@ class YearLevelSeeder extends Seeder
             ['name' => 'Grade 12', 'code' => 'G12', 'sort_order' => 6],
         ];
 
-        foreach ($yearLevels as $yearLevel) {
-            YearLevel::create($yearLevel);
+        foreach ($yearLevels as $level) {
+            YearLevel::create($level);
         }
     }
 }

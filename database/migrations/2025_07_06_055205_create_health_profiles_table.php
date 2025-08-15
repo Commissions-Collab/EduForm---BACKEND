@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('health_profiles', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->decimal('height', 5, 2);
             $table->decimal('weight', 5, 2);
             $table->text('notes')->nullable();

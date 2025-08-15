@@ -13,12 +13,16 @@ return new class extends Migration
     {
         Schema::create('grades', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
             $table->foreignId('subject_id')->constrained('subjects');
-            $table->string('quarter');
+            $table->foreignId('quarter_id')->constrained('quarters');
+            $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
             $table->decimal('grade', 5, 2);
             $table->foreignId('recorded_by')->constrained('users'); // referencing teacher
             $table->timestamps();
+
+            $table->index(['student_id', 'academic_year_id'], 'idx_grades_student_academic');
+            $table->index(['subject_id', 'quarter_id'], 'idx_grades_subject_quarter');
         });
     }
 

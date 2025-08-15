@@ -60,11 +60,6 @@ class AcademicYear extends Model
         return $this->hasMany(AcademicCalendar::class);
     }
 
-    public function attendanceSummaries()
-    {
-        return $this->hasMany(AttendanceSummary::class);
-    }
-
     public function enrollments()
     {
         return $this->hasMany(Enrollment::class);

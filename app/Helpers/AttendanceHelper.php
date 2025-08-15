@@ -7,12 +7,14 @@ use App\Models\Schedule;
 use App\Models\Student;
 use Carbon\Carbon;
 
-class AttendanceHelper {
+class AttendanceHelper
+{
     /**
      * Verify teacher has access to the schedule
      */
 
-    public static function verifyScheduleAccess($scheduleId, $teacherId) {
+    public static function verifyScheduleAccess($scheduleId, $teacherId)
+    {
         return Schedule::with(['subject', 'section', 'section.yearLevel'])
             ->where('id', $scheduleId)
             ->where('teacher_id', $teacherId)
@@ -21,13 +23,13 @@ class AttendanceHelper {
 
     /**
      * Verify student belongs to the section and is enrolled
-    */
+     */
     public static function verifyStudentAccess($studentId, $sectionId)
     {
-        return Student::with(['user:id,email'])
-            ->where('id', $studentId)
-            ->where('section_id', $sectionId)
-            ->where('enrollment_status', 'enrolled')
+        return Student::with(['enrollments'])->whereHas('enrollments', function ($query) use ($sectionId) {
+            $query->where('enrollment_status', 'enrolled')
+                ->where('section_id', $sectionId);
+        })
             ->first();
     }
 
@@ -36,10 +38,10 @@ class AttendanceHelper {
      */
     public static function getDateRange($request, $academicYear): array
     {
-        $startDate = $request->get('start_date') 
+        $startDate = $request->get('start_date')
             ? Carbon::parse($request->get('start_date'))
             : Carbon::parse($academicYear->start_date);
-        
+
         $endDate = $request->get('end_date')
             ? Carbon::parse($request->get('end_date'))
             : Carbon::parse($academicYear->end_date);
@@ -60,7 +62,7 @@ class AttendanceHelper {
             ->where('schedule_id', $scheduleId)
             ->where('academic_year_id', $academicYearId)
             ->whereBetween('attendance_date', [
-                $dateRange['start']->format('Y-m-d'), 
+                $dateRange['start']->format('Y-m-d'),
                 $dateRange['end']->format('Y-m-d')
             ])
             ->orderBy('attendance_date', 'desc')
@@ -77,7 +79,7 @@ class AttendanceHelper {
         $absentCount = $attendances->where('status', 'absent')->count();
         $lateCount = $attendances->where('status', 'late')->count();
         $excusedCount = $attendances->where('status', 'excused')->count();
-        
+
         $attendedCount = $presentCount + $lateCount;
         $attendancePercentage = $totalClasses > 0 ? round(($attendedCount / $totalClasses) * 100, 2) : 0;
 
@@ -100,14 +102,14 @@ class AttendanceHelper {
      */
     public static function getMonthlyBreakdown($attendances)
     {
-        return $attendances->groupBy(function($attendance) {
+        return $attendances->groupBy(function ($attendance) {
             return Carbon::parse($attendance->attendance_date)->format('Y-m');
-        })->map(function($monthAttendances, $month) {
+        })->map(function ($monthAttendances, $month) {
             $monthData = $monthAttendances->groupBy('status');
             $presentCount = $monthData->get('present', collect())->count();
             $lateCount = $monthData->get('late', collect())->count();
             $totalCount = $monthAttendances->count();
-            
+
             return [
                 'month' => $month,
                 'month_name' => Carbon::parse($month . '-01')->format('F Y'),
@@ -116,7 +118,7 @@ class AttendanceHelper {
                 'absent' => $monthData->get('absent', collect())->count(),
                 'late' => $lateCount,
                 'excused' => $monthData->get('excused', collect())->count(),
-                'attendance_rate' => $totalCount > 0 
+                'attendance_rate' => $totalCount > 0
                     ? round((($presentCount + $lateCount) / $totalCount) * 100, 2)
                     : 0
             ];
@@ -128,7 +130,7 @@ class AttendanceHelper {
      */
     public static function formatAttendanceRecords($attendances)
     {
-        return $attendances->map(function($attendance) {
+        return $attendances->map(function ($attendance) {
             return [
                 'id' => $attendance->id,
                 'date' => $attendance->attendance_date,
@@ -205,10 +207,9 @@ class AttendanceHelper {
     {
         return [
             'id' => $recordedBy->id,
-            'name' => $recordedBy->teacher 
+            'name' => $recordedBy->teacher
                 ? trim($recordedBy->teacher->first_name . ' ' . $recordedBy->teacher->last_name)
                 : $recordedBy->email
         ];
     }
-
 }

@@ -16,6 +16,8 @@ return new class extends Migration
             $table->foreignId('teacher_id')->constrained('teachers')->onDelete('cascade');
             $table->foreignId('subject_id')->constrained('subjects')->onDelete('cascade');
             $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
+            $table->foreignId('section_id')->nullable()->constrained('sections')->onDelete('cascade');
+            $table->foreignId('quarter_id')->nullable()->constrained('quarters')->onDelete('cascade');
             $table->timestamps();
 
             // One teacher can teach same subject only once per academic year

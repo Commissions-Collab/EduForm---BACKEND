@@ -6,29 +6,24 @@ use App\Models\AcademicYear;
 use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\TeacherSubject;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class TeacherSubjectSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $currentYear = AcademicYear::where('is_current', true)->first();
+        $academicYear = AcademicYear::where('name', '2025-2026')->first();
         $teachers = Teacher::all();
         $subjects = Subject::all();
-        
+
+        // Assign subjects to teachers using factory
         foreach ($teachers as $teacher) {
-            // Each teacher teaches 2-4 subjects
-            $teacherSubjects = $subjects->random(rand(2, 4));
-            
+            $teacherSubjects = $subjects->random(rand(2, 3));
             foreach ($teacherSubjects as $subject) {
-                TeacherSubject::create([
+                TeacherSubject::factory()->create([
                     'teacher_id' => $teacher->id,
                     'subject_id' => $subject->id,
-                    'academic_year_id' => $currentYear->id,
+                    'academic_year_id' => $academicYear->id
                 ]);
             }
         }

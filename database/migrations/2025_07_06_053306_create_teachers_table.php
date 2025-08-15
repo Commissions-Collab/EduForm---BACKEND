@@ -18,8 +18,11 @@ return new class extends Migration
             $table->string('first_name');
             $table->string('middle_name')->nullable();
             $table->string('last_name');
+            $table->string('gender');
+            $table->string('address')->nullable();
             $table->string('phone')->nullable();
-            $table->date('hire_date')->nullable();
+            $table->string('specialization')->nullable();
+            $table->date('hired_date')->nullable();
             $table->enum('employment_status', ['active', 'inactive', 'terminated'])->default('active');
             $table->timestamps();
             $table->softDeletes();

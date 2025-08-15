@@ -6,6 +6,7 @@ use App\Helpers\AttendanceHelper;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\Attendance;
+use App\Models\Quarter;
 use App\Models\Schedule;
 use App\Models\ScheduleException;
 use App\Models\Student;
@@ -156,10 +157,13 @@ class AttendanceController extends Controller
                 'attendances' => function ($query) use ($scheduleId, $attendanceDate) {
                     $query->where('schedule_id', $scheduleId)
                         ->where('attendance_date', $attendanceDate);
-                }
+                },
+                'enrollments'
             ])
-                ->where('section_id', $schedule->section_id)
-                ->where('enrollment_status', 'enrolled')
+                ->whereHas('enrollments', function ($query) use ($schedule) {
+                    $query->where('enrollment_status', 'enrolled')
+                        ->where('section_id', $schedule->section_id);
+                })
                 ->orderBy('last_name')
                 ->orderBy('first_name')
                 ->get();
@@ -254,9 +258,7 @@ class AttendanceController extends Controller
 
 
             $academicYear = $this->getCurrentAcademicYear();
-
-            Log::debug($academicYear->id);
-            DB::beginTransaction();
+            $currentQuarter = $this->getCurrentQuarter($academicYear->id);
 
             // update or create attendance record
             $attendance = Attendance::updateOrCreate(
@@ -267,6 +269,7 @@ class AttendanceController extends Controller
                 ],
                 [
                     'academic_year_id' => $academicYear->id,
+                    'quarter_id' => $currentQuarter->id,
                     'status' => $request->status,
                     'time_in' => $request->time_in,
                     'time_out' => $request->time_out,
@@ -328,6 +331,7 @@ class AttendanceController extends Controller
 
 
             $academicYear = $this->getCurrentAcademicYear();
+            $currentQuarter = $this->getCurrentQuarter($academicYear->id);
             $updatedAttendances = [];
 
             DB::beginTransaction();
@@ -342,6 +346,7 @@ class AttendanceController extends Controller
                     ],
                     [
                         'academic_year_id' => $academicYear->id,
+                        'quarter_id' => $currentQuarter->id,
                         'status' => $attendanceData['status'],
                         'time_in' => $attendanceData['time_in'] ?? null,
                         'time_out' => $attendanceData['time_out'] ?? null,
@@ -397,18 +402,20 @@ class AttendanceController extends Controller
         try {
             $teacher = Auth::user()->teacher;
 
-           // Verify schedule belongs to teacher
+            // Verify schedule belongs to teacher
             $schedule = AttendanceHelper::verifyScheduleAccess($request->schedule_id, $teacher->id);
 
             if (!$schedule) {
                 return $this->errorResponse('Schedule not found or accesss denied', 404);
             }
-
-            $students = Student::where('section_id', $schedule->section_id)
-                ->where('enrollment_status', 'enrolled')
+            $students = Student::with(['enrollments'])->whereHas('enrollments', function ($query) use ($schedule) {
+                $query->where('enrollment_status', 'enrolled')
+                    ->where('section_id', $schedule->section_id);
+            })
                 ->get();
 
             $academicYear = $this->getCurrentAcademicYear();
+            $currentQuarter = $this->getCurrentQuarter($academicYear->id);
             $updatedAttendances = [];
 
             DB::beginTransaction();
@@ -423,6 +430,7 @@ class AttendanceController extends Controller
                     ],
                     [
                         'academic_year_id' => $academicYear->id,
+                        'quarter_id' => $currentQuarter->id,
                         'status' => $request->status,
                         'time_in' => $request->time_in,
                         'time_out' => $request->time_out,
@@ -563,6 +571,43 @@ class AttendanceController extends Controller
 
         return AcademicYear::where('is_current', true)->firstOrFail();
     }
+
+    private function getCurrentQuarter($academicYearId = null)
+    {
+        $today = Carbon::today();
+
+        // If no academicYearId passed, find the current academic year
+        if (!$academicYearId) {
+            $currentYear = AcademicYear::where('is_current', true)->first();
+            if (!$currentYear) {
+                return null; // No current academic year found
+            }
+            $academicYearId = $currentYear->id;
+        }
+
+        // Try by date range
+        $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+            ->whereDate('start_date', '<=', $today)
+            ->whereDate('end_date', '>=', $today)
+            ->first();
+
+        // Fallback: if no match by date, get quarter marked current
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->where('is_current', true)
+                ->first();
+        }
+
+        // Final fallback: earliest quarter in the year
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->orderBy('start_date')
+                ->first();
+        }
+
+        return $currentQuarter;
+    }
+
 
     private function getWeekCalendarEvents($academicYearId, $weekStart, $weekEnd)
     {

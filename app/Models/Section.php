@@ -14,9 +14,11 @@ class Section extends Model
         'year_level_id',
         'academic_year_id',
         'name',
-        'capacity'
+        'capacity',
+        'strand',
+        'room'
     ];
-
+    
     // Relationships
     public function yearLevel()
     {
@@ -30,7 +32,14 @@ class Section extends Model
 
     public function students()
     {
-        return $this->hasMany(Student::class);
+        return $this->hasManyThrough(
+            Student::class,
+            Enrollment::class,
+            'section_id',    // Foreign key on enrollments table
+            'id',            // Local key on students table
+            'id',            // Local key on sections table
+            'student_id'     // Foreign key on enrollments table pointing to students
+        )->where('enrollments.enrollment_status', 'enrolled');
     }
 
     public function schedules()
@@ -46,16 +55,16 @@ class Section extends Model
     public function advisors()
     {
         return $this->belongsToMany(Teacher::class, 'section_advisors')
-                    ->withPivot('academic_year_id')
-                    ->withTimestamps();
+            ->withPivot('academic_year_id')
+            ->withTimestamps();
     }
 
     // Helper methods
     public function currentAdvisor()
     {
         return $this->belongsToMany(Teacher::class, 'section_advisors')
-                    ->wherePivot('academic_year_id', $this->academic_year_id)
-                    ->first();
+            ->wherePivot('academic_year_id', $this->academic_year_id)
+            ->first();
     }
 
     public function activeStudents()

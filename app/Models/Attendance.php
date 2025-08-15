@@ -14,6 +14,7 @@ class Attendance extends Model
         'student_id',
         'schedule_id',
         'academic_year_id',
+        'quarter_id',
         'attendance_date',
         'status',
         'time_in',

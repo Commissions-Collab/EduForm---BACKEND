@@ -11,13 +11,24 @@ use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Admin\StudentBmiController;
 use App\Http\Controllers\Admin\WorkloadManagementController;
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\SuperAdmin\ScheduleController;
+use App\Http\Controllers\SuperAdmin\SectionController;
+use App\Http\Controllers\SuperAdmin\TeacherController;
 use App\Http\Controllers\Admin\MonthlyAttendanceController;
+
 use App\Http\Controllers\Student\AchievementsController;
 use App\Http\Controllers\Student\DashboardController;
 use App\Http\Controllers\Student\GradeController;
 use App\Http\Controllers\Student\HealthProfileController;
 use App\Http\Controllers\Student\StudentAttendanceController;
+use App\Http\Controllers\SuperAdmin\AcademicCalendarController;
+use App\Http\Controllers\SuperAdmin\AcademicYearController;
+use App\Http\Controllers\SuperAdmin\EnrollmentController;
+use App\Http\Controllers\SuperAdmin\StudentController;
+use App\Http\Controllers\SuperAdmin\StudentRecordController;
+use App\Http\Controllers\SuperAdmin\UserController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
+use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -53,14 +64,72 @@ Route::middleware('auth:sanctum')->group(function () {
      * Super admin routes
      * These routes are accessible only to users with the 'super_admin' role.
      */
-    Route::middleware('role:super_admin')->group(function () {
+    Route::middleware(['auth:sanctum', 'role:super_admin'])->group(function () {
         // Super admin only routes
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
 
-        Route::get('/admin/records', [UserManagementController::class, 'getStudentRecord']);
-        Route::post('/admin/schedule', [UserManagementController::class, 'createTeacherSchedule']);
+       Route::prefix('admin')->group(function () {
+
+            // Student Record Management
+            Route::controller(StudentRecordController::class)->group(function () {
+                Route::get('/records', 'getStudentRecord');
+                Route::delete('/student/{id}', 'deleteStudent');
+                Route::put('/student/{id}', 'updateStudent');
+            });
+
+            // Teacher Management
+            Route::controller(UserController::class)->group(function () {
+                Route::post('/teacher', 'createTeacher');
+                Route::get('/teacher/all', 'indexTeacher');
+                Route::put('/teacher/{id}/record','updateTeacher'); 
+                Route::delete('/teacher/{id}', 'deleteTeacher');
+                Route::post('/schedule', 'createTeacherSchedule');
+            });
+
+            // Year Level Management
+            Route::controller(Year_levelsController::class)->group(function () {
+                Route::post('/year_level', 'createYearLevel');
+                Route::delete('/year_level/{id}', 'deleteYearLevel');
+            });
+
+            //Section
+            Route::controller(SectionController::class)->group(function () {
+                        Route::post('/section', 'createSections');
+                        Route::put('/section/{id}', 'updateSection');
+                        Route::delete('/section/{id}', 'deleteSection');
+                    });
+
+            // Academic Year
+            Route::controller(AcademicYearController::class)->group(function () {
+                Route::get('/academic-years', 'index');
+                Route::post('/academic-years', 'store');
+                Route::get('/academic-years/{id}', 'show');
+                Route::put('/academic-years/{id}', 'update');
+                Route::delete('/academic-years/{id}', 'destroy');
+                Route::get('/academic-years-current', 'current');
+            });
+
+            Route::controller(AcademicCalendarController::class)->group(function () {
+                Route::get('/academic-calendar', 'index');
+                Route::post('/academic-calendar', 'store');
+                Route::get('/academic-calendar/{id}', 'show');
+                Route::put('/academic-calendar/{id}', 'update');
+                Route::delete('/academic-calendar/{id}', 'destroy');
+                Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
+            });
+
+            Route::controller(EnrollmentController::class)->group(function () {
+                Route::get('/enrollments', 'index');
+                Route::post('/enrollments', 'store');
+                Route::get('/enrollments/{id}', 'show');
+                Route::put('/enrollments/{id}', 'update');
+                Route::delete('/enrollments/{id}', 'destroy');
+            });
+
+        });
+     
     });
 
     /**

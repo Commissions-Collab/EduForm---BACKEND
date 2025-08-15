@@ -13,7 +13,8 @@ return new class extends Migration
     {
         Schema::create('promotion_reports', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
+            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
+            $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
             $table->decimal('final_average', 5, 2);
             $table->foreignId('year_level_id')->constrained('year_levels');
             $table->timestamps();

@@ -2,32 +2,53 @@
 
 namespace Database\Factories;
 
+use App\Models\ScheduleException;
 use App\Models\Schedule;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\ScheduleException>
- */
 class ScheduleExceptionFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = ScheduleException::class;
+
     public function definition(): array
     {
-        $newStartTime = fake()->optional(0.6)->time('H:i:s', '16:00:00');
-        $newEndTime = $newStartTime ? date('H:i:s', strtotime($newStartTime) + 3600) : null;
+        $type = $this->faker->randomElement(['cancelled', 'moved', 'makeup', 'special']);
         
         return [
             'schedule_id' => Schedule::factory(),
-            'date' => fake()->dateTimeBetween('-3 months', '+3 months'),
-            'type' => fake()->randomElement(['cancelled', 'moved', 'makeup', 'special']),
-            'new_start_time' => $newStartTime,
-            'new_end_time' => $newEndTime,
-            'new_room' => fake()->optional(0.4)->bothify('Room ###'),
-            'reason' => fake()->optional(0.8)->sentence(8),
+            'date' => $this->faker->dateTimeBetween('2023-06-01', '2026-05-31')->format('Y-m-d'),
+            'type' => $type,
+            'new_start_time' => $type === 'moved' ? $this->faker->time() : null,
+            'new_end_time' => $type === 'moved' ? $this->faker->time() : null,
+            'new_room' => $type === 'moved' ? 'Room ' . $this->faker->numberBetween(101, 210) : null,
+            'reason' => $this->faker->sentence(),
         ];
+    }
+
+    public function cancelled(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'cancelled',
+            'new_start_time' => null,
+            'new_end_time' => null,
+            'new_room' => null,
+            'reason' => $this->faker->randomElement([
+                'Teacher sick leave',
+                'School event',
+                'Holiday',
+                'Emergency'
+            ]),
+        ]);
+    }
+
+    public function moved(): static
+    {
+        $startHour = $this->faker->numberBetween(7, 15);
+        return $this->state(fn (array $attributes) => [
+            'type' => 'moved',
+            'new_start_time' => sprintf('%02d:00:00', $startHour),
+            'new_end_time' => sprintf('%02d:00:00', $startHour + 1),
+            'new_room' => 'Room ' . $this->faker->numberBetween(101, 210),
+        ]);
     }
 }

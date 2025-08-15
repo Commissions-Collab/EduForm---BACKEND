@@ -6,25 +6,22 @@ use App\Models\AcademicYear;
 use App\Models\Section;
 use App\Models\SectionAdvisor;
 use App\Models\Teacher;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class SectionAdvisorSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $currentYear = AcademicYear::where('is_current', true)->first();
-        $sections = Section::where('academic_year_id', $currentYear->id)->get();
+        $academicYear = AcademicYear::where('name', '2025-2026')->first();
+        $sections = Section::all();
         $teachers = Teacher::all();
-        
+
+        // Assign one section advisor per section using factory
         foreach ($sections as $section) {
-            SectionAdvisor::create([
+            SectionAdvisor::factory()->create([
                 'section_id' => $section->id,
                 'teacher_id' => $teachers->random()->id,
-                'academic_year_id' => $currentYear->id,
+                'academic_year_id' => $academicYear->id,
             ]);
         }
     }

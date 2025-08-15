@@ -26,14 +26,13 @@ class ParentsConferenceController extends Controller
 
         $advisor = $this->getAdvisor($teacher->id, $currentYear->id);
 
-        $enrolledStudents = Enrollment::with(['user.student'])
+        $enrolledStudents = Enrollment::with(['student'])
             ->where('section_id', $advisor->section_id)
             ->where('academic_year_id', $currentYear->id)
             ->get();
 
         $students = $enrolledStudents->map(function ($enrollment) {
-            $studentUser = $enrollment->user;
-            $studentProfile = $studentUser->student;
+            $studentUser = $enrollment->student;
 
             $grades = Grade::where('student_id', $studentUser->id)
                 ->pluck('grade');
@@ -44,8 +43,8 @@ class ParentsConferenceController extends Controller
 
             return [
                 'id' => $studentUser->id,
-                'name' => $studentProfile->fullName(),
-                'guardian' => $studentProfile->parent_guardian_name,
+                'name' => $studentUser->first_name . " " . $studentUser->middle_name . " " . $studentUser->last_name,
+                'guardian' => $studentUser->parent_guardian_name,
                 'status' => $status
             ];
         });
@@ -62,7 +61,7 @@ class ParentsConferenceController extends Controller
         $currentYear = $this->getCurrentAcademicYear();
         $advisor = $this->getAdvisor($teacher->id, $currentYear->id);
 
-        $enrollment = Enrollment::with(['user.student'])
+        $enrollment = Enrollment::with(['student'])
             ->where('section_id', $advisor->section_id)
             ->where('academic_year_id', $currentYear->id)
             ->where('student_id', $studentId)
@@ -72,8 +71,7 @@ class ParentsConferenceController extends Controller
             return response()->json(['message' => 'Student not found or not enrolled in your section.'], 404);
         }
 
-        $studentUser = $enrollment->user;
-        $studentProfile = $studentUser->student;
+        $studentUser = $enrollment->student;
 
         $bmiRecords = StudentBmi::where('student_id', $studentUser->id)
             ->where('academic_year_id', $currentYear->id)
@@ -126,11 +124,11 @@ class ParentsConferenceController extends Controller
             'section' => $advisor->section->name,
             'student' => [
                 'id' => $studentUser->id,
-                'name' => $studentProfile->fullName(),
-                'student_id' => $studentProfile->student_id,
-                'guardian' => $studentProfile->parent_guardian_name,
-                'guardian_email' => $studentProfile->parent_guardian_email,
-                'guardian_phone' => $studentProfile->parent_guardian_phone,
+                'name' => $studentUser->first_name . " " . $studentUser->middle_name . " " . $studentUser->last_name,
+                'student_id' => $studentUser->student_id,
+                'guardian' => $studentUser->parent_guardian_name,
+                'guardian_email' => $studentUser->parent_guardian_email,
+                'guardian_phone' => $studentUser->parent_guardian_phone,
                 'grades' => $grades,
                 'attendance_summary' => $attendanceSummary,
                 'bmi_records' => $bmiRecords
@@ -155,15 +153,15 @@ class ParentsConferenceController extends Controller
         $quartersData = $this->transformQuarterData($quarters, $groupedGrades, $quarterAverages);
 
         $pdf = Pdf::loadView('pdf.student-report-card', [
-            'student' => $student->student->fullName(),
-            'student_id' => $student->student->student_id,
+            'student' => $student->first_name . " " . $student->middle_name . " " . $student->last_name,
+            'student_id' => $student->id,
             'section' => $advisor->section->name,
             'quarters' => $quartersData,
             'final_average' => $finalAverage,
         ]);
 
         $pdf->setPaper('A4', 'landscape');
-        return $pdf->download("Report_Card_{$student->student->last_name}.pdf");
+        return $pdf->download("Report_Card_{$student->last_name}.pdf");
     }
 
     public function printAllStudentReportCards()
@@ -173,7 +171,7 @@ class ParentsConferenceController extends Controller
         $advisor = $this->getAdvisor($teacher->id, $currentYear->id);
         $quarters = $this->getAllQuarters($currentYear->id);
 
-        $enrollments = Enrollment::with('user.student')
+        $enrollments = Enrollment::with('student')
             ->where('section_id', $advisor->section_id)
             ->where('academic_year_id', $currentYear->id)
             ->get();
@@ -181,7 +179,7 @@ class ParentsConferenceController extends Controller
         $studentReports = [];
 
         foreach ($enrollments as $enrollment) {
-            $student = $enrollment->user;
+            $student = $enrollment->student;
 
             $grades = $this->getStudentGrades($student->id, $currentYear->id, $quarters->pluck('id'));
 
@@ -192,8 +190,8 @@ class ParentsConferenceController extends Controller
             $quartersData = $this->transformQuarterData($quarters, $groupedGrades, $quarterAverages);
 
             $studentReports[] = [
-                'student' => $student->student->fullName(),
-                'student_id' => $student->student->student_id,
+                'student' => $student->first_name . " " . $student->middle_name . " " . $student->last_name,
+                'student_id' => $student->id,
                 'section' => $advisor->section->name,
                 'quarters' => $quartersData,
                 'final_average' => $finalAverage,
@@ -249,7 +247,7 @@ class ParentsConferenceController extends Controller
 
     private function getStudentFromAdvisorSection($sectionId, $academicYearId, $studentId)
     {
-        $enrollment = Enrollment::with('user.student')
+        $enrollment = Enrollment::with('student')
             ->where('section_id', $sectionId)
             ->where('academic_year_id', $academicYearId)
             ->where('student_id', $studentId)
@@ -258,7 +256,7 @@ class ParentsConferenceController extends Controller
         if (!$enrollment) {
             abort(404, 'Student not found in your advisory section.');
         }
-        return $enrollment->user;
+        return $enrollment->student;
     }
 
     private function getAllQuarters($academicYearId)

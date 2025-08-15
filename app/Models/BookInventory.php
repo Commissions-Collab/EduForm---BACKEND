@@ -2,16 +2,19 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class BookInventory extends Model
 {
+    use HasFactory;
+    
     protected $fillable = [
         'title',
-        'teacher_id',
-        'subject_id',
+        'author',
+        'category',
         'total_copies',
-        'available'
+        'available_quantity'
     ];
 
     public function teacher()

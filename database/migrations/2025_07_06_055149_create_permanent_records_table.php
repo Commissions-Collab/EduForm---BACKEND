@@ -13,8 +13,8 @@ return new class extends Migration
     {
         Schema::create('permanent_records', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->onDelete('cascade');
-            $table->string('school_year');
+            $table->foreignId('student_id')->constrained('students')->onDelete('cascade');
+            $table->foreignId('academic_year_id')->constrained('academic_years')->onDelete('cascade');
             $table->decimal('final_average', 5, 2);
             $table->string('remarks')->nullable();
             $table->foreignId('validated_by')->constrained('users'); // referencing teacher/admin

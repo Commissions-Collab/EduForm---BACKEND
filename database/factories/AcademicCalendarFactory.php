@@ -2,28 +2,54 @@
 
 namespace Database\Factories;
 
+use App\Models\AcademicCalendar;
 use App\Models\AcademicYear;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends \Illuminate\Database\Eloquent\Factories\Factory<\App\Models\AcademicCalendar>
- */
 class AcademicCalendarFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
+    protected $model = AcademicCalendar::class;
+
     public function definition(): array
     {
+        $type = $this->faker->randomElement(['regular', 'holiday', 'exam', 'no_class', 'special_event']);
+        $isClassDay = !in_array($type, ['holiday', 'no_class']);
+
         return [
             'academic_year_id' => AcademicYear::factory(),
-            'date' => fake()->dateTimeBetween('-1 year', '+1 year'),
-            'type' => fake()->randomElement(['regular', 'holiday', 'exam', 'no_class', 'special_event']),
-            'title' => fake()->optional(0.7)->sentence(3),
-            'description' => fake()->optional(0.5)->paragraph(),
-            'is_class_day' => fake()->boolean(80),
+            'date' => $this->faker->dateTimeBetween('2024-08-01', '2025-05-31')->format('Y-m-d'),
+            'type' => $type,
+            'title' => $this->faker->optional()->sentence(3),
+            'description' => $this->faker->optional()->paragraph(),
+            'is_class_day' => $isClassDay,
         ];
+    }
+
+    public function holiday(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'holiday',
+            'is_class_day' => false,
+            'title' => $this->faker->randomElement([
+                'Independence Day',
+                'Christmas Day',
+                'New Year\'s Day',
+                'Rizal Day',
+                'Labor Day',
+            ]),
+        ]);
+    }
+
+    public function exam(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'type' => 'exam',
+            'is_class_day' => true,
+            'title' => $this->faker->randomElement([
+                'Quarterly Examination',
+                'Final Examination',
+                'Midterm Examination'
+            ]),
+        ]);
     }
 }
