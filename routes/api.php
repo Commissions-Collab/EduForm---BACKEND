@@ -5,6 +5,7 @@ use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
 use App\Http\Controllers\Admin\BookManagementController;
 use App\Http\Controllers\Admin\CertificateController;
+use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\ParentsConferenceController;
 use App\Http\Controllers\Admin\PromotionReportController;
 use App\Http\Controllers\Admin\StudentApprovalController;
@@ -138,9 +139,7 @@ Route::middleware('auth:sanctum')->group(function () {
      */
     Route::middleware('role:teacher')->prefix('/teacher')->group(function () {
         // Teacher only routes
-        Route::get('/dashboard', function () {
-            return response()->json(['message' => 'Teacher Dashboard']);
-        });
+        Route::get('/dashboard', [AdminDashboardController::class, 'dashboardData']);
 
         /**
          * Controller for students access request
