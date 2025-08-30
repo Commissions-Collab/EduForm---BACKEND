@@ -71,7 +71,7 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
 
-       Route::prefix('admin')->group(function () {
+        Route::prefix('admin')->group(function () {
 
             // Student Record Management
             Route::controller(StudentRecordController::class)->group(function () {
@@ -84,7 +84,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::controller(UserController::class)->group(function () {
                 Route::post('/teacher', 'createTeacher');
                 Route::get('/teacher/all', 'indexTeacher');
-                Route::put('/teacher/{id}/record','updateTeacher'); 
+                Route::put('/teacher/{id}/record', 'updateTeacher');
                 Route::delete('/teacher/{id}', 'deleteTeacher');
                 Route::post('/schedule', 'createTeacherSchedule');
             });
@@ -97,10 +97,10 @@ Route::middleware('auth:sanctum')->group(function () {
 
             //Section
             Route::controller(SectionController::class)->group(function () {
-                        Route::post('/section', 'createSections');
-                        Route::put('/section/{id}', 'updateSection');
-                        Route::delete('/section/{id}', 'deleteSection');
-                    });
+                Route::post('/section', 'createSections');
+                Route::put('/section/{id}', 'updateSection');
+                Route::delete('/section/{id}', 'deleteSection');
+            });
 
             // Academic Year
             Route::controller(AcademicYearController::class)->group(function () {
@@ -128,9 +128,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::put('/enrollments/{id}', 'update');
                 Route::delete('/enrollments/{id}', 'destroy');
             });
-
         });
-     
     });
 
     /**
@@ -156,13 +154,25 @@ Route::middleware('auth:sanctum')->group(function () {
          * Controller for attendance management
          */
         Route::controller(AttendanceController::class)->group(function () {
-            Route::get('/schedule/weekly', 'getWeeklySchedule');
-            Route::get('/schedule/{scheduleId}/students', 'getScheduleStudents');
-            Route::post('/attendance/update-individual', 'updateIndividualAttendance');
-            Route::post('/attendance/update-bulk', 'updateBulkAttendance');
-            Route::post('/attendance/update-all', 'updateAllStudentsAttendance');
-            Route::get('/schedule/{scheduleId}/attendance-history', 'getAttendanceHistory');
-            Route::get('/student/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
+            // Schedule Management
+            Route::prefix('/schedule')->group(function () {
+                Route::get('/weekly', 'getWeeklySchedule');
+                Route::get('/attendance', 'getScheduleAttendance');
+                Route::get('/{scheduleId}/students', 'getScheduleStudents');
+                Route::get('/{scheduleId}/attendance-history', 'getAttendanceHistory');
+            });
+
+            // Attendance Management
+            Route::prefix('/attendance')->group(function () {
+                Route::post('/update-individual', 'updateIndividualAttendance');
+                Route::post('/update-bulk', 'updateBulkAttendance');
+                Route::post('/update-all', 'updateAllStudentsAttendance');
+            });
+
+            // Student-specific routes
+            Route::prefix('/student')->group(function () {
+                Route::get('/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
+            });
         });
 
         /**

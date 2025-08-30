@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Admin;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\Grade;
+use App\Models\Schedule;
 use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
@@ -25,15 +26,34 @@ class AcademicRecordsController extends Controller
             return response()->json(['error' => 'Teacher profile not found'], 404);
         }
 
+        // Optional param to narrow sections by academic year
+        $academicYearId = $request->integer('academic_year_id');
+
+        // Whatever you already have for years+quarters
         $academicYears = $this->getAcademicYearsWithQuarters($teacher->id);
+        $formattedYears = $this->formatAcademicYears($academicYears); // [{id,name,is_current,quarters:[...]}, ...]
 
-        $filterOptions = [
-            'academic_years' => $this->formatAcademicYears($academicYears),
-            'assignments_by_year' => $this->getAssignmentsGroupedByYear($teacher->id, $academicYears)
-        ];
+        // Sections where this teacher has schedules (optionally filtered by academic year)
+        $sectionIds = Schedule::query()
+            ->when($academicYearId, fn($q) => $q->where('academic_year_id', $academicYearId))
+            ->where('teacher_id', $teacher->id)
+            ->pluck('section_id')
+            ->unique()
+            ->values();
 
-        return response()->json($filterOptions);
+        $sections = Section::query()
+            ->whereIn('id', $sectionIds)
+            ->orderBy('name')
+            ->get(['id', 'name']);
+
+        return response()->json([
+            'academic_years' => $formattedYears,
+            'sections' => $sections,
+            // keep your existing payload for other screens
+            'assignments_by_year' => $this->getAssignmentsGroupedByYear($teacher->id, $academicYears),
+        ]);
     }
+
 
     public function getStudentsGrade(Request $request)
     {
