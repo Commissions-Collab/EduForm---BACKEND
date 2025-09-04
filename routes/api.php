@@ -72,6 +72,38 @@ Route::middleware('auth:sanctum')->group(function () {
         });
 
         Route::prefix('admin')->group(function () {
+            // Academic Year
+            Route::controller(AcademicYearController::class)->group(function () {
+                Route::get('/academic-years', 'index');
+                Route::post('/academic-years', 'store');
+                Route::patch('/academic-years/{id}', 'update');
+                Route::delete('/academic-years/{id}', 'destroy');
+            });
+            
+            // Year Level Management
+            Route::controller(Year_levelsController::class)->group(function () {
+                Route::get('/year-level', 'index');
+                Route::post('/year-level', 'store');
+                Route::patch('/year-level/{id}', 'update');
+                Route::delete('/year-level/{id}', 'delete');
+            });
+            
+            //Section Management
+            Route::controller(SectionController::class)->group(function () {
+                Route::get('/section', 'index');
+                Route::post('/section', 'store');
+                Route::patch('/section/{id}', 'update');
+                Route::delete('/section/{id}', 'delete');
+            });
+            
+            Route::controller(EnrollmentController::class)->group(function () {
+                Route::get('/enrollments', 'index');
+                Route::post('/enrollments', 'store');
+                Route::post('/enrollments/bulk-update', 'bulkStore');
+                Route::get('/enrollments/{id}', 'show');
+                Route::put('/enrollments/{id}', 'update');
+                Route::delete('/enrollments/{id}', 'destroy');
+            });
 
             // Student Record Management
             Route::controller(StudentRecordController::class)->group(function () {
@@ -89,29 +121,6 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/schedule', 'createTeacherSchedule');
             });
 
-            // Year Level Management
-            Route::controller(Year_levelsController::class)->group(function () {
-                Route::post('/year_level', 'createYearLevel');
-                Route::delete('/year_level/{id}', 'deleteYearLevel');
-            });
-
-            //Section
-            Route::controller(SectionController::class)->group(function () {
-                Route::post('/section', 'createSections');
-                Route::put('/section/{id}', 'updateSection');
-                Route::delete('/section/{id}', 'deleteSection');
-            });
-
-            // Academic Year
-            Route::controller(AcademicYearController::class)->group(function () {
-                Route::get('/academic-years', 'index');
-                Route::post('/academic-years', 'store');
-                Route::get('/academic-years/{id}', 'show');
-                Route::put('/academic-years/{id}', 'update');
-                Route::delete('/academic-years/{id}', 'destroy');
-                Route::get('/academic-years-current', 'current');
-            });
-
             Route::controller(AcademicCalendarController::class)->group(function () {
                 Route::get('/academic-calendar', 'index');
                 Route::post('/academic-calendar', 'store');
@@ -121,13 +130,6 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
             });
 
-            Route::controller(EnrollmentController::class)->group(function () {
-                Route::get('/enrollments', 'index');
-                Route::post('/enrollments', 'store');
-                Route::get('/enrollments/{id}', 'show');
-                Route::put('/enrollments/{id}', 'update');
-                Route::delete('/enrollments/{id}', 'destroy');
-            });
         });
     });
 

@@ -4,75 +4,132 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\Section;
+use App\Models\YearLevel;
 use Illuminate\Http\Request;
 
 class SectionController extends Controller
 {
-   //create sections
-public function createSections (Request $request){
-    $validated = $request -> validate([
-        'year_level_id' => 'required|exists:year_levels,id',
-        'name' => 'required|string',
-        'academic_year_id' => 'required|exists:academic_year_id',
-        'capacity' => 'required|string',
-    ]);
+    public function index()
+    {
+        $sections = Section::with(['yearLevel:id,name', 'academicYear:id,name'])
+            ->select('year_level_id', 'academic_year_id', 'name', 'strand', 'room', 'capacity')
+            ->paginate('20');
 
-    $section = Section :: create([
-    'year_level_id' => $validated['year_level_id'],
-    'academic_year_id' => $validated ['academic_year_id'],
-    'name' => $validated['name'],
-    'capacity' => '40'
-    ]);
-
-     return response()->json([
-        'message' => 'Section created successfully.',
-        'section' => $section,
-    ], 201);
-}
-
-
-// update section using id
-
-public function updateSection(Request $request, $id){
-    $section = Section::find($id);
-
-    if(!$section){
-        return response()->json(['message' => 'Section not found'], 404);
+        return response()->json([
+            'success' => true,
+            'sections' => $sections
+        ]);
     }
-    
-    $validated = $request -> validate([
-        'year_level_id' => 'required|exists:year_levels,id',
-        'name' => 'required|string',
-        'academic_year_id' => 'required|exists:academic_year_id',
-        'capacity' => 'required|string',
-    ]);
 
-    $section->update([
-    'year_level_id' => $validated['year_level_id'],
-    'academic_year_id' => $validated ['academic_year_id'],
-    'name' => $validated['name'],
-    'capacity' => '40'
-    ]);
+    //create sections
+    public function store(Request $request)
+    {
+        try {
+            $validated = $request->validate([
+                'year_level_id' => 'required|exists:year_levels,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'name' => 'required|string',
+                'strand' => 'nullable|string',
+                'room' => 'required|string',
+                'capacity' => 'required|numeric',
+            ]);
 
-     return response()->json([
-        'message' => 'Section Updated successfully.',
-        'section' => $section,
-    ], 201);
-}
+            $yearLevel = YearLevel::find($validated['year_level_id']);
 
-//delete section using id
-public function deleteSection(Request $request, $id){
-    $section = Section::find($id);
+            // Only allow strand if year level is G11 or G12
+            if ($validated['strand'] && !in_array($yearLevel->code, ['G11', 'G12'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Strand is only applicable for G11 and G12 year levels.',
+                ], 422);
+            }
 
-    if(!$section){
-            return response()->json(['message' => 'Section not found'], 404);
+            Section::create([
+                'year_level_id' => $validated['year_level_id'],
+                'academic_year_id' => $validated['academic_year_id'],
+                'name' => $validated['name'],
+                'strand' => $validated['strand'],
+                'room' => $validated['room'],
+                'capacity' => $validated['capacity']
+            ]);
+
+            return response()->json([
+                'message' => 'Section created successfully.',
+            ], 201);
+        } catch (\Throwable $th) {
+            return response()->json([
+                "success" => false,
+                'message' => 'Server error',
+                'error' => $th->getMessage()
+            ]);
         }
+    }
 
-    $section->delete();
 
-     return response()->json([
-        'message' => 'Section deleted successfully.',
-    ], 201);
-}
+    // update section using id
 
+    public function update(Request $request, string $id)
+    {
+        try {
+            $section = Section::findOrFail($id);
+            $validated = $request->validate([
+                'year_level_id' => 'required|exists:year_levels,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'name' => 'required|string',
+                'strand' => 'nullable|string',
+                'room' => 'required|string',
+                'capacity' => 'required|numeric',
+            ]);
+
+            $yearLevel = YearLevel::find($validated['year_level_id']);
+
+            // Only allow strand if year level is G11 or G12
+            if ($validated['strand'] && !in_array($yearLevel->code, ['G11', 'G12'])) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Strand is only applicable for G11 and G12 year levels.',
+                ], 422);
+            }
+
+            $section->update([
+                'year_level_id' => $validated['year_level_id'],
+                'academic_year_id' => $validated['academic_year_id'],
+                'name' => $validated['name'],
+                'strand' => $validated['strand'],
+                'room' => $validated['room'],
+                'capacity' => $validated['capacity']
+            ]);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Section updated successfully.',
+            ], 200);
+        } catch (\Throwable $th) {
+            return response()->json([
+                "success" => false,
+                'message' => 'Server error',
+                'error' => $th->getMessage()
+            ]);
+        }
+    }
+
+    //delete section using id
+    public function delete(string $id)
+    {
+        try {
+            $section = Section::findOrFail($id);
+
+            $section->delete();
+
+            return response()->json([
+                'message' => 'Section deleted successfully.',
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                "success" => false,
+                'message' => 'Server error',
+                'error' => $th->getMessage()
+            ]);
+        }
+    }
 }
