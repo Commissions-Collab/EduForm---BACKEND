@@ -17,6 +17,8 @@ class Teacher extends Model
         'first_name',
         'middle_name',
         'last_name',
+        'gender',
+        'address',
         'phone',
         'hire_date',
         'employment_status'

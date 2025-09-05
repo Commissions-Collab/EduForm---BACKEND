@@ -37,8 +37,12 @@ class AttendanceController extends Controller
                 ], 404);
             }
 
+            $academicYearId = $request->get('academic_year_id');
+            $sectionId = $request->get('section_id');
+            $quarterId = $request->get('quarter_id');
+
             // Get current academic year or allow override via request
-            $academicYear = $this->getCurrentAcademicYear($request->get('academic_year_id'));
+            $academicYear = $this->getCurrentAcademicYear($academicYearId);
 
             if (!$academicYear) {
                 return response()->json([
@@ -54,8 +58,8 @@ class AttendanceController extends Controller
 
             $weekEnd = $weekStart->copy()->endOfWeek();
 
-            // Get teacher's schedules for the academic year
-            $schedules = Schedule::with([
+            // Build query for teacher's schedules
+            $schedulesQuery = Schedule::with([
                 'subject:id,name,code',
                 'section:id,name',
                 'section.yearLevel:id,name',
@@ -65,7 +69,14 @@ class AttendanceController extends Controller
             ])
                 ->where('teacher_id', $teacher->id)
                 ->where('academic_year_id', $academicYear->id)
-                ->where('is_active', true)
+                ->where('is_active', true);
+
+            // Apply section filter if provided
+            if ($sectionId) {
+                $schedulesQuery->where('section_id', $sectionId);
+            }
+
+            $schedules = $schedulesQuery
                 ->orderBy('day_of_week')
                 ->orderBy('start_time')
                 ->get();
@@ -79,17 +90,29 @@ class AttendanceController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'academic_year' => $academicYear ? [
+                    'academic_year' => [
                         'id' => $academicYear->id,
                         'name' => $academicYear->name
-                    ] : null,
+                    ],
                     'week_period' => [
                         'start' => $weekStart->format('Y-m-d'),
                         'end' => $weekEnd->format('Y-m-d'),
                         'week_number' => $weekStart->weekOfYear
                     ],
                     'schedule' => $weeklySchedule,
-                    'calendar_events' => $calendarEvents
+                    'calendar_events' => $calendarEvents,
+                    // Flatten schedules for easier frontend consumption
+                    'schedules' => $schedules->map(function ($schedule) {
+                        return [
+                            'id' => $schedule->id,
+                            'subject' => $schedule->subject,
+                            'section' => $schedule->section,
+                            'day_of_week' => $schedule->day_of_week,
+                            'time_start' => Carbon::parse($schedule->start_time)->format('H:i'),
+                            'time_end' => Carbon::parse($schedule->end_time)->format('H:i'),
+                            'room' => $schedule->room
+                        ];
+                    })
                 ]
             ]);
         } catch (\Exception $e) {
@@ -101,6 +124,59 @@ class AttendanceController extends Controller
         }
     }
 
+    /**
+     * Get schedule attendance data - new method for frontend compatibility
+     */
+    public function getScheduleAttendance(Request $request): JsonResponse
+    {
+        try {
+            $scheduleId = $request->get('schedule_id');
+            $date = $request->get('date', Carbon::now()->format('Y-m-d'));
+
+            if (!$scheduleId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Schedule ID is required'
+                ], 400);
+            }
+
+            $response = $this->getScheduleStudents($scheduleId, $request);
+            $responseData = json_decode($response->getContent(), true);
+
+            if ($responseData['success']) {
+                // Reformat to match frontend expectations
+                $students = collect($responseData['data']['students'])->map(function ($student) {
+                    return [
+                        'id' => $student['id'],
+                        'name' => $student['full_name'],
+                        'first_name' => $student['first_name'],
+                        'last_name' => $student['last_name'],
+                        'attendance_status' => $student['attendance']['status'] ?? 'Present',
+                        'attendance_reason' => $student['attendance']['remarks'] ?? '',
+                        'attendance' => $student['attendance']
+                    ];
+                });
+
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'schedule' => $responseData['data']['schedule'],
+                        'students' => $students,
+                        'summary' => $responseData['data']['summary'],
+                        'attendance_date' => $date
+                    ]
+                ]);
+            }
+
+            return $response;
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch schedule attendance',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
 
     public function getScheduleStudents($scheduleId, Request $request): JsonResponse
     {
@@ -128,15 +204,6 @@ class AttendanceController extends Controller
 
             // Get attendance date (default to today or specified date)
             $attendanceDate = $request->get('date') ? Carbon::parse($request->get('date'))->format('Y-m-d') : Carbon::now()->format('Y-m-d');
-
-            // Validate that the date matches the schedule's day of week
-            $dayOfWeek = Carbon::parse($attendanceDate)->format('l');
-            if ($dayOfWeek !== $schedule->day_of_week) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Selected date does not match the schedule day'
-                ], 400);
-            }
 
             // Check for schedule exceptions
             $exception = ScheduleException::where('schedule_id', $scheduleId)
@@ -235,45 +302,53 @@ class AttendanceController extends Controller
             'status' => 'required|in:present,absent,late,excused',
             'time_in' => 'nullable|date_format:H:i',
             'time_out' => 'nullable|date_format:H:i',
-            'remarks' => 'nullable|string|max:500'
+            'remarks' => 'nullable|string|max:500',
+            'reason' => 'nullable|string|max:500' // Added reason field
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'erros' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
         try {
+            DB::beginTransaction();
+
             $teacher = Auth::user()->teacher;
 
             // Verify schedule belongs to teacher
             $schedule = AttendanceHelper::verifyScheduleAccess($request->schedule_id, $teacher->id);
 
             if (!$schedule) {
-                return $this->errorResponse('Schedule not found or accesss denied', 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Schedule not found or access denied'
+                ], 404);
             }
-
 
             $academicYear = $this->getCurrentAcademicYear();
             $currentQuarter = $this->getCurrentQuarter($academicYear->id);
 
-            // update or create attendance record
+            // Handle date parameter (frontend sends 'date', backend expects 'attendance_date')
+            $attendanceDate = $request->attendance_date ?? $request->date;
+
+            // Update or create attendance record
             $attendance = Attendance::updateOrCreate(
                 [
                     'student_id' => $request->student_id,
                     'schedule_id' => $request->schedule_id,
-                    'attendance_date' => $request->attendance_date
+                    'attendance_date' => $attendanceDate
                 ],
                 [
                     'academic_year_id' => $academicYear->id,
                     'quarter_id' => $currentQuarter->id,
-                    'status' => $request->status,
+                    'status' => strtolower($request->status), // Ensure lowercase
                     'time_in' => $request->time_in,
                     'time_out' => $request->time_out,
-                    'remarks' => $request->remarks,
+                    'remarks' => $request->remarks ?? $request->reason,
                     'recorded_by' => Auth::id(),
                     'recorded_at' => now()
                 ]
@@ -308,14 +383,15 @@ class AttendanceController extends Controller
             'attendances.*.status' => 'required|in:present,absent,late,excused',
             'attendances.*.time_in' => 'nullable|date_format:H:i',
             'attendances.*.time_out' => 'nullable|date_format:H:i',
-            'attendances.*.remarks' => 'nullable|string|max:500'
+            'attendances.*.remarks' => 'nullable|string|max:500',
+            'attendances.*.reason' => 'nullable|string|max:500'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'erros' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -326,9 +402,11 @@ class AttendanceController extends Controller
             $schedule = AttendanceHelper::verifyScheduleAccess($request->schedule_id, $teacher->id);
 
             if (!$schedule) {
-                return $this->errorResponse('Schedule not found or accesss denied', 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Schedule not found or access denied'
+                ], 404);
             }
-
 
             $academicYear = $this->getCurrentAcademicYear();
             $currentQuarter = $this->getCurrentQuarter($academicYear->id);
@@ -337,7 +415,7 @@ class AttendanceController extends Controller
             DB::beginTransaction();
 
             foreach ($request->attendances as $attendanceData) {
-                // update or create attendance record
+                // Update or create attendance record
                 $attendance = Attendance::updateOrCreate(
                     [
                         'student_id' => $attendanceData['student_id'],
@@ -347,10 +425,10 @@ class AttendanceController extends Controller
                     [
                         'academic_year_id' => $academicYear->id,
                         'quarter_id' => $currentQuarter->id,
-                        'status' => $attendanceData['status'],
+                        'status' => strtolower($attendanceData['status']),
                         'time_in' => $attendanceData['time_in'] ?? null,
                         'time_out' => $attendanceData['time_out'] ?? null,
-                        'remarks' => $attendanceData['remarks'] ?? null,
+                        'remarks' => $attendanceData['remarks'] ?? $attendanceData['reason'] ?? null,
                         'recorded_by' => Auth::id(),
                         'recorded_at' => now()
                     ]
@@ -358,7 +436,6 @@ class AttendanceController extends Controller
 
                 $updatedAttendances[] = $attendance;
             }
-
 
             DB::commit();
 
@@ -384,18 +461,20 @@ class AttendanceController extends Controller
     {
         $validator = Validator::make($request->all(), [
             'schedule_id' => 'required|exists:schedules,id',
-            'attendance_date' => 'required|date',
+            'attendance_date' => 'nullable|date',
+            'date' => 'nullable|date', // Alternative field name
             'status' => 'required|in:present,absent,late,excused',
             'time_in' => 'nullable|date_format:H:i',
             'time_out' => 'nullable|date_format:H:i',
-            'remarks' => 'nullable|string|max:500'
+            'remarks' => 'nullable|string|max:500',
+            'reason' => 'nullable|string|max:500'
         ]);
 
         if ($validator->fails()) {
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
-                'erros' => $validator->errors()
+                'errors' => $validator->errors()
             ], 422);
         }
 
@@ -406,8 +485,12 @@ class AttendanceController extends Controller
             $schedule = AttendanceHelper::verifyScheduleAccess($request->schedule_id, $teacher->id);
 
             if (!$schedule) {
-                return $this->errorResponse('Schedule not found or accesss denied', 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Schedule not found or access denied'
+                ], 404);
             }
+
             $students = Student::with(['enrollments'])->whereHas('enrollments', function ($query) use ($schedule) {
                 $query->where('enrollment_status', 'enrolled')
                     ->where('section_id', $schedule->section_id);
@@ -418,23 +501,26 @@ class AttendanceController extends Controller
             $currentQuarter = $this->getCurrentQuarter($academicYear->id);
             $updatedAttendances = [];
 
+            // Handle date parameter (frontend might send 'date' instead of 'attendance_date')
+            $attendanceDate = $request->attendance_date ?? $request->date ?? Carbon::now()->format('Y-m-d');
+
             DB::beginTransaction();
 
             foreach ($students as $student) {
-                // update or create attendance record
+                // Update or create attendance record
                 $attendance = Attendance::updateOrCreate(
                     [
                         'student_id' => $student->id,
                         'schedule_id' => $request->schedule_id,
-                        'attendance_date' => $request->attendance_date
+                        'attendance_date' => $attendanceDate
                     ],
                     [
                         'academic_year_id' => $academicYear->id,
                         'quarter_id' => $currentQuarter->id,
-                        'status' => $request->status,
+                        'status' => strtolower($request->status),
                         'time_in' => $request->time_in,
                         'time_out' => $request->time_out,
-                        'remarks' => $request->remarks,
+                        'remarks' => $request->remarks ?? $request->reason,
                         'recorded_by' => Auth::id(),
                         'recorded_at' => now()
                     ]
@@ -457,7 +543,11 @@ class AttendanceController extends Controller
             ]);
         } catch (\Exception $e) {
             DB::rollBack();
-            return $this->errorResponse('Failed to update all students attendance', 500, $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to update all students attendance',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -470,7 +560,10 @@ class AttendanceController extends Controller
             $schedule = AttendanceHelper::verifyScheduleAccess($scheduleId, $teacher->id);
 
             if (!$schedule) {
-                return $this->errorResponse('Schedule not found or accesss denied', 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Schedule not found or access denied'
+                ], 404);
             }
 
             // Get date range (default to current month)
@@ -503,7 +596,11 @@ class AttendanceController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to fetch attendance history', 500, $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch attendance history',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -516,14 +613,20 @@ class AttendanceController extends Controller
             $schedule = AttendanceHelper::verifyScheduleAccess($scheduleId, $teacher->id);
 
             if (!$schedule) {
-                return $this->errorResponse('Schedule not found or accesss denied', 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Schedule not found or access denied'
+                ], 404);
             }
 
             // Verify student belongs to the section
             $student = AttendanceHelper::verifyStudentAccess($studentId, $schedule->section_id);
 
             if (!$student) {
-                return $this->errorResponse('Student not found or not enrolled in this section', 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found or not enrolled in this section'
+                ], 404);
             }
 
             // Get current academic year
@@ -558,11 +661,15 @@ class AttendanceController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to fetch student attendance history', 500, $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch student attendance history',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
-    // Helper
+    // Helper methods remain the same
     private function getCurrentAcademicYear($academicYearId = null)
     {
         if ($academicYearId) {
@@ -576,29 +683,25 @@ class AttendanceController extends Controller
     {
         $today = Carbon::today();
 
-        // If no academicYearId passed, find the current academic year
         if (!$academicYearId) {
             $currentYear = AcademicYear::where('is_current', true)->first();
             if (!$currentYear) {
-                return null; // No current academic year found
+                return null;
             }
             $academicYearId = $currentYear->id;
         }
 
-        // Try by date range
         $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
             ->whereDate('start_date', '<=', $today)
             ->whereDate('end_date', '>=', $today)
             ->first();
 
-        // Fallback: if no match by date, get quarter marked current
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
                 ->where('is_current', true)
                 ->first();
         }
 
-        // Final fallback: earliest quarter in the year
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
                 ->orderBy('start_date')
@@ -608,7 +711,6 @@ class AttendanceController extends Controller
         return $currentQuarter;
     }
 
-
     private function getWeekCalendarEvents($academicYearId, $weekStart, $weekEnd)
     {
         return DB::table('academic_calendars')
@@ -617,79 +719,45 @@ class AttendanceController extends Controller
             ->get();
     }
 
-    private function formatWeeklySchedule($schedules, $weekStart, $calendarEvents)
+    private function formatWeeklySchedule($schedules, Carbon $weekStart, $calendarEvents)
     {
-        $days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-        $weeklySchedule = [];
+        $days = [];
+        $weekEnd = $weekStart->copy()->endOfWeek();
 
-        foreach ($days as $day) {
-            $currentDate = $weekStart->copy()->startOfWeek()->addDays(array_search($day, $days));
+        // Define weekdays explicitly
+        $weekDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
 
-            // Get calendar event for this date
-            $calendarEvent = collect($calendarEvents)->firstWhere('date', $currentDate->format('Y-m-d'));
+        foreach ($weekDays as $dayName) {
+            $date = $weekStart->copy()->next($dayName);
+            if ($dayName === 'Monday') {
+                $date = $weekStart->copy();
+            }
 
-            $daySchedules = $schedules->where('day_of_week', $day)->map(function ($schedule) use ($currentDate) {
-                // Check for exceptions on this date
-                $exception = $schedule->scheduleExceptions->firstWhere('date', $currentDate->format('Y-m-d'));
-
-                return [
-                    'id' => $schedule->id,
-                    'subject' => [
-                        'id' => $schedule->subject->id,
-                        'name' => $schedule->subject->name,
-                        'code' => $schedule->subject->code
-                    ],
-                    'section' => [
-                        'id' => $schedule->section->id,
-                        'name' => $schedule->section->name,
-                        'year_level' => optional($schedule->section->yearLevel)->name
-                    ],
-                    'time' => [
-                        'start' => $schedule->start_time,
-                        'end' => $schedule->end_time,
-                        'duration' => Carbon::parse($schedule->start_time)->diffInMinutes(Carbon::parse($schedule->end_time)) . ' minutes'
-                    ],
-                    'room' => $schedule->room,
-                    'status' => $exception ? $exception->type : 'regular',
-                    'exception' => $exception ? [
-                        'type' => $exception->type,
-                        'reason' => $exception->reason,
-                        'new_time' => $exception->new_start_time ? [
-                            'start' => $exception->new_start_time,
-                            'end' => $exception->new_end_time
-                        ] : null,
-                        'new_room' => $exception->new_room
-                    ] : null
-                ];
+            // Filter schedules by weekday
+            $daySchedules = $schedules->filter(function ($s) use ($dayName) {
+                return $s->day_of_week === $dayName;
             });
 
-            $weeklySchedule[$day] = [
-                'date' => $currentDate->format('Y-m-d'),
-                'day_name' => $day,
-                'is_class_day' => $calendarEvent ? $calendarEvent->is_class_day : true,
-                'calendar_event' => $calendarEvent ? [
-                    'type' => $calendarEvent->type,
-                    'title' => $calendarEvent->title,
-                    'description' => $calendarEvent->description
-                ] : null,
-                'classes' => $daySchedules->values()
+            // Match calendar event for that date
+            $calendarEvent = collect($calendarEvents)->firstWhere('date', $date->format('Y-m-d'));
+
+            $days[$dayName] = [
+                'date' => $date->format('Y-m-d'),
+                'classes' => $daySchedules->map(function ($s) {
+                    return [
+                        'id' => $s->id,
+                        'subject' => $s->subject,
+                        'section' => $s->section,
+                        'time_start' => Carbon::parse($s->time_start)->format('H:i'),
+                        'time_end' => Carbon::parse($s->time_end)->format('H:i'),
+                        'room' => $s->room,
+                    ];
+                })->values(),
+                'calendar_event' => $calendarEvent,
+                'is_class_day' => $calendarEvent ? (bool) $calendarEvent->is_class_day : true
             ];
         }
 
-        return $weeklySchedule;
-    }
-
-    private function errorResponse($message, $statusCode = 500, $error = null): JsonResponse
-    {
-        $response = [
-            'success' => false,
-            'message' => $message
-        ];
-
-        if ($error) {
-            $response['error'] = $error;
-        }
-
-        return response()->json($response, $statusCode);
+        return $days;
     }
 }
