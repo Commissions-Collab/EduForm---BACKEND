@@ -132,7 +132,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
             Route::controller(AcademicCalendarController::class)->group(function () {
                 Route::get('/academic-calendar', 'index');
-                Route::post('/academic-calendar', 'store');
+                Route::post('/academic-calendar', 'bulkStore');
                 Route::get('/academic-calendar/{id}', 'show');
                 Route::put('/academic-calendar/{id}', 'update');
                 Route::delete('/academic-calendar/{id}', 'destroy');

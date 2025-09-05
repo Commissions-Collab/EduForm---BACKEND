@@ -5,91 +5,165 @@ namespace App\Http\Controllers\SuperAdmin;
 use App\Http\Controllers\Controller;
 use App\Models\AcademicCalendar;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class AcademicCalendarController extends Controller
 {
-   // List all calendar entries
+    // List all calendar entries
     public function index()
     {
-        return response()->json(AcademicCalendar::with('academicYear')->get());
-    }
+        $calendar = AcademicCalendar::with('academicYear:id,name,is_current')->get();
 
-    // Store a new calendar entry
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'academic_year_id' => 'required|exists:academic_years,id',
-            'date' => [
-                'required',
-                'date',
-                Rule::unique('academic_calendars')->where(function ($query) use ($request) {
-                    return $query->where('academic_year_id', $request->academic_year_id);
-                }),
-            ],
-            'type' => ['required', Rule::in(['regular', 'holiday', 'exam', 'no_class', 'special_event'])],
-            'title' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'is_class_day' => 'required|boolean',
+        return response()->json([
+            'data' => $calendar
         ]);
-
-        $calendar = AcademicCalendar::create($validated);
-        return response()->json(['message' => 'Calendar entry created', 'data' => $calendar], 201);
     }
+
+    public function bulkStore(Request $request)
+    {
+        DB::beginTransaction();
+
+        try {
+            $validated = $request->validate([
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'entries' => 'required|array|min:1',
+                'entries.*.date' => [
+                    'required',
+                    'date',
+                    function ($attribute, $value) use ($request) {
+                        $exists = AcademicCalendar::where('academic_year_id', $request->academic_year_id)
+                            ->where('date', $value)
+                            ->exists();
+                        if ($exists) {
+                            throw ValidationException::withMessages([
+                                $attribute => "The date {$value} already exists for this academic year.",
+                            ]);
+                        }
+                    }
+                ],
+                'entries.*.title' => [
+                    'required',
+                    'string',
+                    'max:255',
+                    function ($attribute, $value) use ($request) {
+                        $exists = AcademicCalendar::where('academic_year_id', $request->academic_year_id)
+                            ->where('title', $value)
+                            ->exists();
+                        if ($exists) {
+                            throw ValidationException::withMessages([
+                                $attribute => "The title '{$value}' already exists for this academic year.",
+                            ]);
+                        }
+                    }
+                ],
+                'entries.*.type' => ['required', Rule::in(['regular', 'holiday', 'exam', 'no_class', 'special_event'])],
+                'entries.*.description' => 'required|string|max:255',
+                'entries.*.is_class_day' => 'required|boolean',
+            ]);
+
+            $academicYearId = $validated['academic_year_id'];
+            $data = [];
+
+            foreach ($validated['entries'] as $entry) {
+                $data[] = [
+                    'academic_year_id' => $academicYearId,
+                    'date' => $entry['date'],
+                    'type' => $entry['type'],
+                    'title' => $entry['title'],
+                    'description' => $entry['description'],
+                    'is_class_day' => $entry['is_class_day'],
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ];
+            }
+
+            AcademicCalendar::insert($data);
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Calendar entries created successfully.',
+                'count' => count($data),
+            ], 201);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Error on assigning teacher as an adviser.',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+    }
+
 
     // Show one calendar entry
-    public function show($id)
+    public function show(string $id)
     {
-        $calendar = AcademicCalendar::with('academicYear')->find($id);
-        if (!$calendar) {
-            return response()->json(['message' => 'Calendar entry not found'], 404);
-        }
-        return response()->json($calendar);
+        $calendar = AcademicCalendar::with('academicYear')->findOrFail($id);
+
+        return response()->json([
+            'calendar' => $calendar
+        ]);
     }
 
     // Update a calendar entry
     public function update(Request $request, $id)
     {
-        $calendar = AcademicCalendar::find($id);
-        if (!$calendar) {
-            return response()->json(['message' => 'Calendar entry not found'], 404);
+        try {
+            $calendar = AcademicCalendar::find($id);
+            if (!$calendar) {
+                return response()->json(['message' => 'Calendar entry not found'], 404);
+            }
+
+            $validated = $request->validate([
+                'academic_year_id' => 'sometimes|exists:academic_years,id',
+                'date' => [
+                    'sometimes',
+                    'date',
+                    Rule::unique('academic_calendars')->ignore($id)->where(function ($query) use ($request, $calendar) {
+                        return $query->where('academic_year_id', $request->academic_year_id ?? $calendar->academic_year_id);
+                    }),
+                ],
+                'type' => ['sometimes', Rule::in(['regular', 'holiday', 'exam', 'no_class', 'special_event'])],
+                'title' => 'nullable|string|max:255',
+                'description' => 'nullable|string',
+                'is_class_day' => 'sometimes|boolean',
+            ]);
+
+            $calendar->update($validated);
+            return response()->json([
+                'message' => 'Calendar event updated successfully',
+                'data' => $calendar
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Error on assigning teacher as an adviser.',
+                'error' => $th->getMessage()
+            ], 500);
         }
-
-        $validated = $request->validate([
-            'academic_year_id' => 'sometimes|exists:academic_years,id',
-            'date' => [
-                'sometimes',
-                'date',
-                Rule::unique('academic_calendars')->ignore($id)->where(function ($query) use ($request, $calendar) {
-                    return $query->where('academic_year_id', $request->academic_year_id ?? $calendar->academic_year_id);
-                }),
-            ],
-            'type' => ['sometimes', Rule::in(['regular', 'holiday', 'exam', 'no_class', 'special_event'])],
-            'title' => 'nullable|string|max:255',
-            'description' => 'nullable|string',
-            'is_class_day' => 'sometimes|boolean',
-        ]);
-
-        $calendar->update($validated);
-        return response()->json(['message' => 'Calendar entry updated', 'data' => $calendar]);
     }
 
     // Delete a calendar entry
-    public function destroy($id)
+    public function destroy(string $id)
     {
-        $calendar = AcademicCalendar::find($id);
-        if (!$calendar) {
-            return response()->json(['message' => 'Calendar entry not found'], 404);
+        try {
+            $calendar = AcademicCalendar::findOrFail($id);
+
+            $calendar->delete();
+
+            return response()->json([
+                'message' => 'Calendar event deleted successfully'
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Server error.',
+                'error' => $th->getMessage()
+            ], 500);
         }
-
-        $calendar->delete();
-        return response()->json(['message' => 'Calendar entry deleted']);
-    }
-
-    // Optional: List all events for a specific academic year
-    public function getByYear($academic_year_id)
-    {
-        $events = AcademicCalendar::where('academic_year_id', $academic_year_id)->get();
-        return response()->json($events);
     }
 }
