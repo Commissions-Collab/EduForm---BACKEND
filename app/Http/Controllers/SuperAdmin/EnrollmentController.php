@@ -98,13 +98,9 @@ class EnrollmentController extends Controller
     }
 
     // Show specific enrollment
-    public function show($id)
+    public function show(string $id)
     {
-        $enrollment = Enrollment::with(['student', 'yearLevel', 'section'])->find($id);
-
-        if (!$enrollment) {
-            return response()->json(['message' => 'Enrollment not found'], 404);
-        }
+        $enrollment = Enrollment::with(['student', 'yearLevel', 'section', 'academicYear'])->findOrFail($id);
 
         return response()->json($enrollment);
     }
@@ -112,38 +108,65 @@ class EnrollmentController extends Controller
     // Update enrollment
     public function update(Request $request, $id)
     {
-        $enrollment = Enrollment::find($id);
-
-        if (!$enrollment) {
-            return response()->json(['message' => 'Enrollment not found'], 404);
-        }
+        $enrollment = Enrollment::findOrFail($id);
 
         $validated = $request->validate([
-            'student_id'    => 'sometimes|exists:users,id',
-            'school_year'   => 'sometimes|string',
+            'academic_year_id'   => 'sometimes|numeric',
             'grade_level'   => 'sometimes|exists:year_levels,id',
             'section_id'    => 'sometimes|exists:sections,id',
+            'enrollment_status' => 'sometimes|string'
         ]);
 
         $enrollment->update($validated);
 
         return response()->json([
+            'success' => true,
             'message' => 'Enrollment updated successfully',
             'data' => $enrollment
         ]);
     }
 
     // Delete enrollment
-    public function destroy($id)
+    public function destroy(string $id)
     {
-        $enrollment = Enrollment::find($id);
-
-        if (!$enrollment) {
-            return response()->json(['message' => 'Enrollment not found'], 404);
-        }
+        $enrollment = Enrollment::findOrFail($id);
 
         $enrollment->delete();
 
-        return response()->json(['message' => 'Enrollment deleted successfully']);
+        return response()->json([
+            'message' => 'Enrollment deleted successfully'
+        ]);
+    }
+
+    public function promote(Request $request)
+    {
+        $validated = $request->validate([
+            'student_ids' => 'required|array',
+            'student_ids.*' => 'exists:students,id',
+            'next_academic_year_id' => 'required|exists:academic_years,id',
+            'next_grade_level_id' => 'required|exists:year_levels,id',
+            'section_id' => 'required|exists:sections,id',
+        ]);
+
+        $promotions = [];
+        foreach ($validated['student_ids'] as $studentId) {
+            $promotions[] = [
+                'student_id' => $studentId,
+                'academic_year_id' => $validated['next_academic_year_id'],
+                'grade_level' => $validated['next_grade_level_id'],
+                'section_id' => $validated['section_id'],
+                'enrollment_status' => 'enrolled',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        Enrollment::insert($promotions);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Students promoted successfully.',
+            'count' => count($promotions)
+        ]);
     }
 }
