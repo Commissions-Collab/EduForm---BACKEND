@@ -22,6 +22,16 @@ class YearLevel extends Model
       return $this->hasMany(Section::class);
    }
 
+   public function subjects()
+   {
+      return $this->belongsToMany(Subject::class, 'year_level_subjects');
+   }
+
+   public function yearLevelSubjects()
+    {
+        return $this->hasMany(YearLevelSubject::class);
+    }
+
    // Scopes
    public function scopeOrdered($query)
    {
