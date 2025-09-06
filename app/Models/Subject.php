@@ -53,6 +53,10 @@ class Subject extends Model
         return $this->hasMany(BookInventory::class);
     }
 
+    public function yearLevelSubjects()
+    {
+        return $this->hasMany(YearLevelSubject::class);
+    }
 
     // Helper methods
     public function currentTeachers()
