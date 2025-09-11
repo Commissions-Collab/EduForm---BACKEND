@@ -114,7 +114,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
             // Teacher Management
             Route::controller(TeacherController::class)->group(function () {
-                Route::get('/teacher', 'index');
+                Route::get('/teacher/filter-options', 'getFilterOptions');
+                Route::get('/teacher', action: 'index');
                 Route::post('/teacher', 'store');
                 Route::put('/teacher/{id}', 'update');
                 Route::delete('/teacher/{id}', 'delete');

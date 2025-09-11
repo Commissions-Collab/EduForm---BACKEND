@@ -3,29 +3,89 @@
 namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
+use App\Models\AcademicYear;
+use App\Models\Quarter;
 use App\Models\Schedule;
+use App\Models\Section;
 use App\Models\SectionAdvisor;
+use App\Models\Subject;
 use App\Models\Teacher;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
-use PhpParser\Node\Expr\FuncCall;
 
 class TeacherController extends Controller
 {
-
-    public function index()
+    public function getFilterOptions(Request $request)
     {
-        $teacher = Teacher::with(['user:id,email'])
+        // Fetch the current academic year
+        $currentYear = AcademicYear::where('is_current', true)->first()
+            ?? AcademicYear::latest('id')->first();
+
+        if (!$currentYear) {
+            return response()->json([
+                'academic_year' => null,
+                'quarters' => [],
+                'subjects' => [],
+                'sections' => [],
+            ], 200);
+        }
+
+        // Quarters for this year
+        $quarters = Quarter::where('academic_year_id', $currentYear->id)
+            ->orderBy('id')
+            ->get(['id', 'name']);
+
+        // All subjects
+        $subjects = Subject::orderBy('name')->get(['id', 'name']);
+
+        // All sections for this year
+        $sections = Section::where('academic_year_id', $currentYear->id)
+            ->orderBy('name')
+            ->get()
+            ->map(function ($section) use ($currentYear) {
+                $advisor = $section->advisors()
+                    ->wherePivot('academic_year_id', $currentYear->id)
+                    ->first();
+
+                return [
+                    'id' => $section->id,
+                    'name' => $section->name,
+                    'adviser' => $advisor
+                        ? trim($advisor->first_name . ' ' . ($advisor->middle_name ? $advisor->middle_name . ' ' : '') . $advisor->last_name)
+                        : null,
+                ];
+            });
+
+        return response()->json([
+            'academic_year' => [
+                'id' => $currentYear->id,
+                'name' => $currentYear->name,
+                'is_current' => $currentYear->is_current,
+            ],
+            'quarters' => $quarters,
+            'subjects' => $subjects,
+            'sections' => $sections,
+        ]);
+    }
+
+
+    public function index(Request $request)
+    {
+        $perPage = $request->get('per_page', 25);
+        $page = $request->get('page', 1);
+
+        $teachers = Teacher::with(['user:id,email', 'sectionAdvisors'])
             ->select(['id', 'user_id', 'employee_id', 'first_name', 'middle_name', 'last_name', 'gender', 'address', 'phone', 'specialization', 'hired_date', 'employment_status'])
             ->latest()
-            ->paginate(25);
+            ->paginate($perPage, ['*'], 'page', $page);
 
         return response()->json([
             'success' => true,
-            'data' => $teacher
+            'data' => $teachers
         ]);
     }
 
@@ -41,11 +101,11 @@ class TeacherController extends Controller
                 'first_name' => 'required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
                 'last_name' => 'required|string|max:255',
-                'gender' => 'required|string|max:50',
-                'address' => 'nullable|string|max:255',
-                'phone' => 'nullable|numeric|digits:11',
-                'hired_date' => 'nullable|string|max:255',
-                'specialization' => 'nullable|string',
+                'gender' => 'required|string|in:Male,Female,Other',
+                'address' => 'nullable|string|max:500',
+                'phone' => 'nullable|string|regex:/^09[0-9]{9}$/',
+                'hired_date' => 'nullable|date',
+                'specialization' => 'nullable|string|max:255',
             ]);
 
             $user = User::create([
@@ -57,7 +117,7 @@ class TeacherController extends Controller
 
             $teacher = Teacher::create([
                 'user_id' => $user->id,
-                'employee_id' => strtoupper('TEACHER-' . str_pad(Teacher::max('id') + 1, 4, '0', STR_PAD_LEFT)),
+                'employee_id' => strtoupper('TEACHER-' . str_pad((Teacher::max('id') ?? 0) + 1, 4, '0', STR_PAD_LEFT)),
                 'first_name' => $validated['first_name'],
                 'middle_name' => $validated['middle_name'],
                 'last_name' => $validated['last_name'],
@@ -67,22 +127,25 @@ class TeacherController extends Controller
                 'specialization' => $validated['specialization'],
                 'hired_date' => $validated['hired_date'],
                 'employment_status' => 'active',
-
             ]);
+
+            // Load relationships for response
+            $teacher->load(['user:id,email']);
 
             DB::commit();
 
             return response()->json([
+                'success' => true,
                 'message' => 'Teacher registered successfully',
-                'teacher' => $teacher,
-                'user' => $user
+                'data' => $teacher
             ], 201);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
+                'success' => false,
                 'message' => 'Server error',
                 'error' => $th->getMessage()
-            ]);
+            ], 500);
         }
     }
 
@@ -104,20 +167,25 @@ class TeacherController extends Controller
                 'first_name' => 'required|string|max:255',
                 'middle_name' => 'nullable|string|max:255',
                 'last_name' => 'required|string|max:255',
-                'gender' => 'required|string|max:50',
-                'address' => 'nullable|string|max:255',
-                'phone' => 'nullable|numeric|digits:11',
-                'hired_date' => 'nullable|string|max:255',
-                'specialization' => 'nullable|string',
+                'gender' => 'required|string|in:Male,Female,Other',
+                'address' => 'nullable|string|max:500',
+                'phone' => 'nullable|string|regex:/^09[0-9]{9}$/',
+                'hired_date' => 'nullable|date',
+                'specialization' => 'nullable|string|max:255',
                 'status' => 'required|string|in:active,inactive,terminated'
             ]);
 
             $user = User::findOrFail($teacher->user_id);
 
-            $user->update([
-                'email' => $validated['email'],
-                'password' => Hash::make($validated['password']),
-            ]);
+            // Prepare user update data
+            $userUpdateData = ['email' => $validated['email']];
+
+            // Only update password if provided
+            if (!empty($validated['password'])) {
+                $userUpdateData['password'] = Hash::make($validated['password']);
+            }
+
+            $user->update($userUpdateData);
 
             $teacher->update([
                 'first_name' => $validated['first_name'],
@@ -134,24 +202,58 @@ class TeacherController extends Controller
             DB::commit();
 
             return response()->json([
+                'success' => true,
                 'message' => 'Teacher updated successfully',
             ]);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
+                'success' => false,
                 'message' => 'Server error',
                 'error' => $th->getMessage()
-            ]);
+            ], 500);
         }
     }
 
     public function delete(string $id)
     {
-        $teacher = Teacher::findOrFail($id);
+        try {
+            $teacher = Teacher::findOrFail($id);
 
-        $teacher->delete();
+            // Check if teacher has active schedules or is an advisor
+            $hasActiveSchedules = Schedule::where('teacher_id', $id)->where('is_active', true)->exists();
+            $isAdvisor = SectionAdvisor::where('teacher_id', $id)->exists();
 
-        return response()->json(['message' => 'Teacher deleted successfully']);
+            if ($hasActiveSchedules || $isAdvisor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot delete teacher. Teacher has active schedules or is assigned as an advisor.'
+                ], 409);
+            }
+
+            DB::beginTransaction();
+
+            // Delete associated user
+            if ($teacher->user_id) {
+                User::find($teacher->user_id)?->delete();
+            }
+
+            $teacher->delete();
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Teacher deleted successfully'
+            ]);
+        } catch (\Throwable $th) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Server error',
+                'error' => $th->getMessage()
+            ], 500);
+        }
     }
 
     public function createTeacherSchedule(Request $request)
@@ -176,42 +278,49 @@ class TeacherController extends Controller
             $academicYearId = $validated['academic_year_id'];
             $createdSchedules = [];
 
-            foreach ($validated['schedules'] as $scheduleData) {
-                // check for conflicts
+            foreach ($validated['schedules'] as $index => $scheduleData) {
+                // Check time overlap
                 $conflict = Schedule::where('academic_year_id', $academicYearId)
                     ->where('day_of_week', $scheduleData['day_of_week'])
+                    ->where(function ($query) use ($scheduleData) {
+                        // Check for time overlap: (StartA < EndB) AND (EndA > StartB)
+                        $query->where('start_time', '<', $scheduleData['end_time'])
+                            ->where('end_time', '>', $scheduleData['start_time']);
+                    })
                     ->where(function ($query) use ($scheduleData, $teacherId) {
-                        $query->where('section_id', $scheduleData['section_id'])
-                            ->orWhere('teacher_id', $teacherId);
+                        // Check for conflict with the same teacher OR section OR room
+                        $query->where('teacher_id', $teacherId)
+                            ->orWhere('section_id', $scheduleData['section_id']);
 
                         if (!empty($scheduleData['room'])) {
                             $query->orWhere('room', $scheduleData['room']);
                         }
                     })
-                    ->where(function ($query) use ($scheduleData) {
-                        // Time overlap check
-                        $query->whereBetween('start_time', [$scheduleData['start_time'], $scheduleData['end_time']])
-                            ->orWhereBetween('end_time', [$scheduleData['start_time'], $scheduleData['end_time']])
-                            ->orWhere(function ($q) use ($scheduleData) {
-                                $q->where('start_time', '<', $scheduleData['start_time'])
-                                    ->where('end_time', '>', $scheduleData['end_time']);
-                            });
-                    })
                     ->exists();
 
                 if ($conflict) {
+                    DB::rollBack();
+
+                    // Get subject and section names for better error message
+                    $subject = Subject::find($scheduleData['subject_id']);
+                    $section = Section::find($scheduleData['section_id']);
+
                     return response()->json([
                         'success' => false,
-                        'message' => "Conflict detected for {$scheduleData['day_of_week']} {$scheduleData['start_time']}–{$scheduleData['end_time']} (Teacher/Section/Room overlap)."
+                        'message' => "Schedule conflict detected for " . ($subject ? $subject->name : 'Subject') .
+                            " in " . ($section ? $section->name : 'Section') .
+                            " on {$scheduleData['day_of_week']} at {$scheduleData['start_time']}–{$scheduleData['end_time']}. " .
+                            "The teacher, section, or room is already booked.",
+                        'conflict_schedule_index' => $index + 1
                     ], 409);
                 }
 
                 // Create schedule if no conflict
                 $createdSchedules[] = Schedule::create([
                     'teacher_id' => $teacherId,
+                    'academic_year_id' => $academicYearId,
                     'subject_id' => $scheduleData['subject_id'],
                     'section_id' => $scheduleData['section_id'],
-                    'academic_year_id' => $academicYearId,
                     'quarter_id' => $scheduleData['quarter_id'],
                     'day_of_week' => $scheduleData['day_of_week'],
                     'start_time' => $scheduleData['start_time'],
@@ -225,15 +334,31 @@ class TeacherController extends Controller
 
             return response()->json([
                 'success' => true,
-                'message' => 'Schedules created successfully.',
-                'schedules' => $createdSchedules,
+                'message' => count($createdSchedules) > 1 ?
+                    'Schedules created successfully.' :
+                    'Schedule created successfully.',
+                'data' => $createdSchedules,
             ], 201);
-        } catch (\Throwable $th) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             DB::rollBack();
             return response()->json([
-                'message' => 'Server error',
-                'error' => $th->getMessage()
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error creating teacher schedule: ' . $e->getMessage(), [
+                'teacher_id' => $request->input('teacher_id'),
+                'academic_year_id' => $request->input('academic_year_id'),
+                'trace' => $e->getTraceAsString()
             ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred while creating schedules.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
         }
     }
 
@@ -252,9 +377,15 @@ class TeacherController extends Controller
                 ->first();
 
             if ($existingAdviser) {
+                // Get section and academic year names for better error message
+                $section = Section::find($validated['section_id']);
+                $academicYear = AcademicYear::find($validated['academic_year_id']);
+
                 return response()->json([
                     'success' => false,
-                    'message' => 'This section already has an adviser assigned for the given academic year.',
+                    'message' => ($section ? $section->name : 'This section') .
+                        ' already has an adviser assigned for ' .
+                        ($academicYear ? $academicYear->name : 'the given academic year') . '.',
                 ], 409);
             }
 
@@ -265,16 +396,32 @@ class TeacherController extends Controller
                 'academic_year_id' => $validated['academic_year_id']
             ]);
 
+            // Load relationships for response
+            $data->load(['section', 'teacher', 'academicYear']);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Teacher successfully assigned as adviser to section.',
+                'message' => 'Teacher successfully assigned as section adviser.',
                 'data' => $data
             ], 201);
-        } catch (\Throwable $th) {
+        } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error on assigning teacher as an adviser.',
-                'error' => $th->getMessage()
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            Log::error('Error assigning teacher as adviser: ' . $e->getMessage(), [
+                'section_id' => $request->input('section_id'),
+                'teacher_id' => $request->input('teacher_id'),
+                'academic_year_id' => $request->input('academic_year_id'),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred while assigning adviser.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
             ], 500);
         }
     }
