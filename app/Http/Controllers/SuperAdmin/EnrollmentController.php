@@ -17,7 +17,7 @@ class EnrollmentController extends Controller
             ->paginate('25');
 
         return response()->json([
-            'success' => 'true',
+            'success' => true,
             'data' => $enrollments
         ]);
     }
@@ -30,8 +30,10 @@ class EnrollmentController extends Controller
                 'required',
                 'exists:students,id',
                 Rule::unique('enrollments')->where(function ($query) use ($request) {
-                    return $query->where('academic_year_id', $request->academic_year_id);
+                    return $query->where('academic_year_id', $request->academic_year_id)
+                        ->where('enrollment_status', 'enrolled');
                 }),
+
             ],
             'academic_year_id' => 'required|exists:academic_years,id',
             'grade_level' => 'required|exists:year_levels,id',
@@ -64,6 +66,7 @@ class EnrollmentController extends Controller
         ]);
 
         $enrollments = [];
+        $errors = [];
 
         foreach ($validated['student_ids'] as $studentId) {
             $alreadyEnrolled = Enrollment::where('student_id', $studentId)
@@ -88,6 +91,21 @@ class EnrollmentController extends Controller
             ];
         }
 
+        if (!empty($errors)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Some students could not be enrolled.',
+                'errors' => $errors
+            ], 422);
+        }
+
+        if (empty($enrollments)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No students to enroll.'
+            ], 422);
+        }
+
         Enrollment::insert($enrollments);
 
         return response()->json([
@@ -102,7 +120,10 @@ class EnrollmentController extends Controller
     {
         $enrollment = Enrollment::with(['student', 'yearLevel', 'section', 'academicYear'])->findOrFail($id);
 
-        return response()->json($enrollment);
+        return response()->json([
+            'success' => true,
+            'data' => $enrollment
+        ]);
     }
 
     // Update enrollment
@@ -114,7 +135,7 @@ class EnrollmentController extends Controller
             'academic_year_id'   => 'sometimes|numeric',
             'grade_level'   => 'sometimes|exists:year_levels,id',
             'section_id'    => 'sometimes|exists:sections,id',
-            'enrollment_status' => 'sometimes|string'
+            'enrollment_status' => 'sometimes|string|in:enrolled,pending,withdrawn,transferred'
         ]);
 
         $enrollment->update($validated);
@@ -149,6 +170,8 @@ class EnrollmentController extends Controller
         ]);
 
         $promotions = [];
+        $errors = [];
+
         foreach ($validated['student_ids'] as $studentId) {
             $promotions[] = [
                 'student_id' => $studentId,
@@ -159,6 +182,21 @@ class EnrollmentController extends Controller
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
+        }
+
+        if (!empty($errors)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Some students could not be promoted.',
+                'errors' => $errors
+            ], 422);
+        }
+
+        if (empty($promotions)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No students to promote.'
+            ], 422);
         }
 
         Enrollment::insert($promotions);

@@ -12,7 +12,7 @@ class SectionController extends Controller
     public function index()
     {
         $sections = Section::with(['yearLevel:id,name', 'academicYear:id,name'])
-            ->select('year_level_id', 'academic_year_id', 'name', 'strand', 'room', 'capacity')
+            ->select('id', 'year_level_id', 'academic_year_id', 'name', 'strand', 'room', 'capacity')
             ->paginate('20');
 
         return response()->json([

@@ -104,8 +104,9 @@ Route::middleware('auth:sanctum')->group(function () {
              */
             Route::controller(EnrollmentController::class)->group(function () {
                 Route::get('/enrollments', 'index');
+                Route::get('/students', 'index');
                 Route::post('/enrollments', 'store');
-                Route::post('/enrollments/bulk-update', 'bulkStore');
+                Route::post('/enrollments/bulk-store', 'bulkStore');
                 Route::get('/enrollments/{id}', 'show');
                 Route::put('/enrollments/{id}', 'update');
                 Route::delete('/enrollments/{id}', 'destroy');

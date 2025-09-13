@@ -19,6 +19,11 @@ return new class extends Migration
             $table->foreignId('section_id')->constrained('sections');
             $table->string('enrollment_status');
             $table->timestamps();
+
+
+            $table->index(['student_id', 'academic_year_id'], 'idx_student_academic_year');
+            $table->index('enrollment_status', 'idx_enrollment_status');
+            $table->index('section_id', 'idx_section_id');
         });
     }
 
