@@ -12,7 +12,7 @@ class EnrollmentController extends Controller
     // Get all enrollments
     public function index()
     {
-        $enrollments = Enrollment::with(['student:id,lrn,first_name,middle_name,last_name,gender', 'yearLevel:id,name', 'section:id,name,year_level_id,academic_year_id'])
+        $enrollments = Enrollment::with(['student:id,lrn,first_name,middle_name,last_name,gender', 'yearLevel:id,name', 'section:id,name,year_level_id,academic_year_id', 'academicYear:id,name'])
             ->latest()
             ->paginate('25');
 
@@ -60,7 +60,7 @@ class EnrollmentController extends Controller
             'academic_year_id' => 'required|exists:academic_years,id',
             'grade_level' => 'required|exists:year_levels,id',
             'section_id' => 'required|exists:sections,id',
-            'status' => 'required|string|in:enrolled,pending,withdrawn,transferred',
+            // 'status' => 'required|string|in:enrolled,pending,withdrawn,transferred',
         ], [
             'student_ids.*.exists' => 'One or more students do not exist in the system.',
         ]);
@@ -85,7 +85,7 @@ class EnrollmentController extends Controller
                 'academic_year_id' => $validated['academic_year_id'],
                 'grade_level' => $validated['grade_level'],
                 'section_id' => $validated['section_id'],
-                'enrollment_status' => $validated['status'],
+                'enrollment_status' => 'enrolled',
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
