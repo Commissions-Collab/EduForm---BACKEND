@@ -11,13 +11,19 @@ use Illuminate\Validation\ValidationException;
 
 class AcademicCalendarController extends Controller
 {
-    // List all calendar entries
-    public function index()
+    public function index(Request $request)
     {
-        $calendar = AcademicCalendar::with('academicYear:id,name,is_current')->get();
+        $perPage = $request->get('per_page', 10);
+        $calendar = AcademicCalendar::with('academicYear:id,name,is_current')
+            ->orderBy('date', 'desc')
+            ->paginate($perPage);
 
         return response()->json([
-            'data' => $calendar
+            'data' => $calendar->items(),
+            'current_page' => $calendar->currentPage(),
+            'total_pages' => $calendar->lastPage(),
+            'total' => $calendar->total(),
+            'per_page' => $calendar->perPage()
         ]);
     }
 
@@ -92,12 +98,11 @@ class AcademicCalendarController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Error on assigning teacher as an adviser.',
+                'message' => 'Error creating calendar entries.',
                 'error' => $th->getMessage()
             ], 500);
         }
     }
-
 
     // Show one calendar entry
     public function show(string $id)
@@ -141,7 +146,7 @@ class AcademicCalendarController extends Controller
         } catch (\Throwable $th) {
             return response()->json([
                 'success' => false,
-                'message' => 'Error on assigning teacher as an adviser.',
+                'message' => 'Error updating calendar entry.',
                 'error' => $th->getMessage()
             ], 500);
         }
@@ -165,5 +170,23 @@ class AcademicCalendarController extends Controller
                 'error' => $th->getMessage()
             ], 500);
         }
+    }
+
+    public function getByYear(Request $request, $academic_year_id)
+    {
+        $perPage = $request->get('per_page', 10);
+
+        $calendars = AcademicCalendar::where('academic_year_id', $academic_year_id)
+            ->with('academicYear:id,name,is_current')
+            ->orderBy('date', 'desc')
+            ->paginate($perPage);
+
+        return response()->json([
+            'data' => $calendars->items(),
+            'current_page' => $calendars->currentPage(),
+            'total_pages' => $calendars->lastPage(),
+            'total' => $calendars->total(),
+            'per_page' => $calendars->perPage()
+        ]);
     }
 }
