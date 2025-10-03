@@ -20,18 +20,14 @@ class AchievementsController extends Controller
         $student = Auth::user();
         $academicYear = $this->getCurrentAcademicYear();
 
+        if ($academicYear instanceof \Illuminate\Http\JsonResponse) {
+            return $academicYear;
+        }
+
         $quarters = Quarter::where('academic_year_id', $academicYear->id)->get();
 
         $honorRoll = collect();
         $perfectAttendance = collect();
-        // $competitionAwards = collect([
-        //     [
-        //         'type' => 'Science Fair Winner',
-        //         'issued_date' => 'March 10, 2023',
-        //         'description' => 'Winner of 2023 Science Fair',
-        //         'category' => 'Competition',
-        //     ]
-        // ]);
 
         foreach ($quarters as $quarter) {
             $grades = Grade::where('student_id', $student->id)
@@ -61,7 +57,6 @@ class AchievementsController extends Controller
                 }
             }
 
-            // Attendance
             $attendances = Attendance::where('student_id', $student->id)
                 ->whereBetween('attendance_date', [$quarter->start_date, $quarter->end_date])
                 ->get();
@@ -71,7 +66,7 @@ class AchievementsController extends Controller
 
             if ($totalDays > 0 && $totalDays == $presentDays) {
                 $perfectAttendance->push([
-                    'type' => 'perfect_attendace',
+                    'type' => 'perfect_attendance',
                     'issued_date' => Carbon::parse($quarter->end_date)->format('F d, Y'),
                     'description' => "For 100% attendance during the {$quarter->name}",
                     'quarter_id' => $quarter->id,
@@ -81,22 +76,18 @@ class AchievementsController extends Controller
             }
         }
 
-        // Count honor roll by type
         $honorCounts = [
-            'with_honors' => $honorRoll->where('type', 'With Honors')->count(),
-            'with_high_honors' => $honorRoll->where('type', 'With High Honors')->count(),
-            'with_highest_honors' => $honorRoll->where('type', 'With Highest Honors')->count(),
+            'with_honors' => $honorRoll->where('honor_type', 'With Honors')->count(),
+            'with_high_honors' => $honorRoll->where('honor_type', 'With High Honors')->count(),
+            'with_highest_honors' => $honorRoll->where('honor_type', 'With Highest Honors')->count(),
         ];
 
         return response()->json([
             'certificate_count' => $honorRoll->count() + $perfectAttendance->count(),
             'honor_roll_count' => $honorCounts,
             'attendance_awards_count' => $perfectAttendance->count(),
-            // 'competition_awards_count' => $competitionAwards->count(),
-
             'academic_awards' => $honorRoll->values(),
             'attendance_awards' => $perfectAttendance->values(),
-            // 'competition_awards' => $competitionAwards->values(),
         ]);
     }
 
@@ -105,7 +96,11 @@ class AchievementsController extends Controller
         $student = Auth::user();
         $currentYear = $this->getCurrentAcademicYear();
 
-        $type = $request->input('type'); // 'honor_roll' or 'perfect_attendance'
+        if ($currentYear instanceof \Illuminate\Http\JsonResponse) {
+            return $currentYear;
+        }
+
+        $type = $request->input('type');
         $quarterId = $request->input('quarter_id');
 
         $quarter = Quarter::findOrFail($quarterId);
@@ -171,7 +166,7 @@ class AchievementsController extends Controller
     {
         $year = AcademicYear::where('is_current', 1)->first();
         if (!$year) {
-            abort(404, 'Active academic year not found.');
+            return response()->json(['message' => 'Active academic year not found.'], 404);
         }
         return $year;
     }

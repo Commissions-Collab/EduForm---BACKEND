@@ -32,19 +32,19 @@ class StudentBmiController extends Controller
             ->where('academic_year_id', $academicYearId)
             ->get();
 
-        $studentIds = $enrollments->pluck('id')->toArray();
+        $studentIds = $enrollments->pluck('student.id')->toArray(); // Get actual student IDs
 
         // Step 2: Fetch all BMI records for these students in this academic year & quarter
         $bmiRecords = StudentBmi::whereIn('student_id', $studentIds)
             ->where('academic_year_id', $academicYearId)
             ->where('quarter_id', $quarterId)
             ->get()
-            ->keyBy('student_id'); // index by user_id (not student model ID)
+            ->keyBy('student_id'); // index by student_id
 
         // Step 3: Map data
         $students = $enrollments->map(function ($enrollment) use ($bmiRecords) {
             $student = $enrollment->student;
-            $bmi = $bmiRecords[$enrollment->student_id] ?? null;
+            $bmi = $bmiRecords[$student->id] ?? null;
 
             return [
                 'student_id' => $student->id,
@@ -53,6 +53,8 @@ class StudentBmiController extends Controller
                 'weight' => $bmi->weight_kg ?? null,
                 'bmi' => $bmi->bmi ?? null,
                 'bmi_status' => $bmi->bmi_category ?? null,
+                'bmi_record_id' => $bmi->id ?? null, // ADD THIS LINE - This is the ID needed for updates/deletes
+                'remarks' => $bmi->remarks ?? null,
             ];
         });
 
@@ -63,7 +65,7 @@ class StudentBmiController extends Controller
             'students' => $students,
         ]);
     }
-    
+
     /**
      * Store a newly created resource in storage.
      */
