@@ -47,6 +47,7 @@ class DashboardController extends Controller
             $gradeChangePercentage = round((($currentAverage - $previousAverage) / $previousAverage) * 100, 2);
         }
 
+        // Get grades by subject with averages
         $grades = Grade::with('subject')
             ->select('subject_id', DB::raw('AVG(grade) as average_grade'))
             ->where('student_id', $student->id)
@@ -76,6 +77,7 @@ class DashboardController extends Controller
                 ->sortByDesc('attendance_date')
                 ->take(5)
                 ->values()
+                ->toArray()
         ];
 
         $bookBorrow = StudentBorrowBook::with('bookInventory')
@@ -94,7 +96,10 @@ class DashboardController extends Controller
         $notifications = $this->getImportantNotifications($student->id, $currentYear->id);
 
         return response()->json([
-            'grades' => $totalAverage,
+            'grades' => [
+                'total_average' => $totalAverage,
+                'subjects' => $grades->toArray()
+            ],
             'grade_change_percent' => $gradeChangePercentage,
             'attendance_rate' => $attendanceSummary,
             'borrow_book' => $borrowCount,
@@ -102,7 +107,6 @@ class DashboardController extends Controller
             'notifications' => $notifications
         ]);
     }
-
 
     private function getCurrentAcademicYear()
     {
