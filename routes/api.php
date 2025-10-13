@@ -30,6 +30,7 @@ use App\Http\Controllers\SuperAdmin\StudentRecordController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\SuperAdmin\StudentApprovalController as SuperAdminStudentApprovalController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -147,7 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
             });
 
-            Route::put('/students/{id}/approve', [SuperAdminStudentApprovalController::class, 'approve']);
+            Route::put('/students/{id}/approve', [SuperAdminStudentApprovalController, 'approve']);
             Route::delete('/students/{id}/reject', [SuperAdminStudentApprovalController::class, 'reject']);
 
         });
