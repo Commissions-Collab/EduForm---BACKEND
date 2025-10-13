@@ -147,6 +147,9 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
             });
 
+            Route::put('/students/{id}/approve', [SuperAdminStudentApprovalController::class, 'approve']);
+            Route::delete('/students/{id}/reject', [SuperAdminStudentApprovalController::class, 'reject']);
+
         });
     });
 
