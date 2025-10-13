@@ -7,6 +7,7 @@ use App\Http\Requests\RegisterRequest;
 use App\Models\Request as ModelsRequest;
 use App\Models\Student;
 use App\Models\User;
+use App\Notifications\AccountApprovedNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -99,6 +100,8 @@ class StudentApprovalController extends Controller
             // Mark request as approved
             $studentRequest->status = 'approved';
             $studentRequest->save();
+
+            $user->notify(new AccountApprovedNotification($user));
 
             DB::commit();
 
