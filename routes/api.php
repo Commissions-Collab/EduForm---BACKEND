@@ -25,6 +25,8 @@ use App\Http\Controllers\Student\StudentAttendanceController;
 use App\Http\Controllers\SuperAdmin\AcademicCalendarController;
 use App\Http\Controllers\SuperAdmin\AcademicYearController;
 use App\Http\Controllers\SuperAdmin\EnrollmentController;
+use App\Http\Controllers\SuperAdmin\FilterController;
+use App\Http\Controllers\SuperAdmin\MonthlyAttendanceController as SuperAdminMonthlyAttendanceController;
 use App\Http\Controllers\SuperAdmin\StudentController;
 use App\Http\Controllers\SuperAdmin\StudentRecordController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
@@ -61,8 +63,8 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 
     Route::middleware('auth:sanctum')->get('/user', function (Request $request) {
-    return $request->user();
-});
+        return $request->user();
+    });
 
     /**
      * Super admin routes
@@ -74,7 +76,15 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
 
+    
+
         Route::prefix('admin')->group(function () {
+
+            Route::controller(FilterController::class)->group(function () {
+                Route::get('/filter-options', 'getFilterOptions');
+                Route::get('/sections-by-year/{academicYearId}', 'getSectionsForAcademicYear');
+            });
+
             // Academic Year
             Route::controller(AcademicYearController::class)->group(function () {
                 Route::get('/academic-years', 'index');
@@ -82,7 +92,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::patch('/academic-years/{id}', 'update');
                 Route::delete('/academic-years/{id}', 'destroy');
             });
-            
+
             // Year Level Management
             Route::controller(Year_levelsController::class)->group(function () {
                 Route::get('/year-level', 'index');
@@ -90,7 +100,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::patch('/year-level/{id}', 'update');
                 Route::delete('/year-level/{id}', 'delete');
             });
-            
+
             //Section Management
             Route::controller(SectionController::class)->group(function () {
                 Route::get('/section', 'index');
@@ -98,7 +108,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::patch('/section/{id}', 'update');
                 Route::delete('/section/{id}', 'delete');
             });
-            
+
             /**
              * Enrollment Management
              */
@@ -131,6 +141,15 @@ Route::middleware('auth:sanctum')->group(function () {
             //     Route::put('/student/{id}', 'updateStudent');
             // });
 
+            Route::controller(SuperAdminMonthlyAttendanceController::class)->group(function () {
+                Route::get('/sections/{sectionId}/monthly-attendance', 'getMonthlyAttendanceSummary');
+                Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
+            });
+
+
+
+
+
 
             Route::controller(AcademicCalendarController::class)->group(function () {
                 Route::get('/academic-calendar', 'index');
@@ -140,7 +159,6 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::delete('/academic-calendar/{id}', 'destroy');
                 Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
             });
-
         });
     });
 
@@ -192,12 +210,6 @@ Route::middleware('auth:sanctum')->group(function () {
          * Controller for Monthly Attendance
          */
 
-        Route::controller(MonthlyAttendanceController::class)->group(function () {
-            Route::get('/sections/{sectionId}/monthly-attendance', 'getMonthlyAttendanceSummary');
-        });
-
-
-        Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
 
         Route::controller(AcademicRecordsController::class)->group(function () {
             Route::get('/academic-records/filter-options', 'getFilterOptions');

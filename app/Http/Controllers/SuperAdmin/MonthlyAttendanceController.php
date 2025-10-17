@@ -1,38 +1,28 @@
 <?php
 
-namespace App\Http\Controllers\Admin;
+namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use App\Models\Attendance;
 use App\Models\Schedule;
-use App\Traits\AdvisorAccessTrait;
+use App\Models\Section;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 
 class MonthlyAttendanceController extends Controller
 {
-    use AdvisorAccessTrait;
-
     /**
-     * Get monthly attendance summary - Only accessible by section advisors
+     * Get monthly attendance summary - Super Admin has full access to all sections
+     * Uses the same logic as teacher controller but without advisor restrictions
      */
     public function getMonthlyAttendanceSummary($sectionId, Request $request)
     {
         try {
-            $teacher = Auth::user()->teacher;
+            // Validate section exists
+            $section = Section::with(['yearLevel', 'students'])->findOrFail($sectionId);
+            
             $academicYear = $this->getCurrentAcademicYear($request->get('academic_year_id'));
-
-            // Check advisor access first
-            $accessError = $this->requireAdvisorAccess($sectionId, $teacher->id, $academicYear->id);
-            if ($accessError) {
-                return $accessError;
-            }
-
-            // Get section advisor with full details
-            $sectionAdvisor = $this->getSectionAdvisorWithDetails($sectionId, $teacher->id, $academicYear->id);
-            $section = $sectionAdvisor->section;
 
             // Get month and year from request (default to current month)
             $month = $request->get('month', now()->month);
@@ -42,7 +32,7 @@ class MonthlyAttendanceController extends Controller
             $startDate = Carbon::create($year, $month, 1);
             $endDate = $startDate->copy()->endOfMonth();
 
-            // Get all students in the section (already loaded via relationship)
+            // Get all students in the section
             $students = $section->students;
 
             // Get all schedules for this section
@@ -60,11 +50,6 @@ class MonthlyAttendanceController extends Controller
             return response()->json([
                 'success' => true,
                 'data' => [
-                    'advisor' => [
-                        'id' => $sectionAdvisor->teacher->id,
-                        'name' => trim($sectionAdvisor->teacher->first_name . ' ' . $sectionAdvisor->teacher->last_name),
-                        'email' => $sectionAdvisor->teacher->user->email
-                    ],
                     'section' => [
                         'id' => $section->id,
                         'name' => $section->name,
@@ -93,7 +78,18 @@ class MonthlyAttendanceController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            return $this->errorResponse('Failed to fetch monthly attendance summary', 500, $e->getMessage());
+            \Log::error('SuperAdminMonthlyAttendanceController error', [
+                'message' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'section_id' => $sectionId,
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch monthly attendance summary',
+                'error' => $e->getMessage()
+            ], 500);
         }
     }
 
@@ -106,9 +102,6 @@ class MonthlyAttendanceController extends Controller
         return AcademicYear::where('is_current', true)->firstOrFail();
     }
 
-    /**
-     * Get all schedules for the section
-     */
     private function getSectionSchedules($sectionId, $academicYearId)
     {
         return Schedule::with(['subject'])
@@ -117,9 +110,6 @@ class MonthlyAttendanceController extends Controller
             ->get();
     }
 
-    /**
-     * Get attendance data for the month
-     */
     private function getMonthlyAttendanceData($sectionId, $academicYearId, $startDate, $endDate)
     {
         return Attendance::with(['student', 'schedule.subject'])
@@ -134,9 +124,6 @@ class MonthlyAttendanceController extends Controller
             ->groupBy(['student_id', 'attendance_date']);
     }
 
-    /**
-     * Generate calendar days for the month
-     */
     private function generateCalendarDays($startDate, $endDate): array
     {
         $days = [];
@@ -148,7 +135,7 @@ class MonthlyAttendanceController extends Controller
                 'day' => $current->day,
                 'day_name' => $current->format('D'),
                 'is_weekend' => $current->isWeekend(),
-                'is_holiday' => $this->isHoliday($current) // You can implement holiday checking
+                'is_holiday' => false
             ];
             $current->addDay();
         }
@@ -156,9 +143,6 @@ class MonthlyAttendanceController extends Controller
         return $days;
     }
 
-    /**
-     * Process daily attendance for each student
-     */
     private function processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays): array
     {
         $studentSummaries = [];
@@ -190,7 +174,6 @@ class MonthlyAttendanceController extends Controller
                     'is_holiday' => $day['is_holiday']
                 ];
 
-                // Update monthly summary
                 $monthlySummary[$dayStatus . '_days']++;
             }
 
@@ -213,52 +196,31 @@ class MonthlyAttendanceController extends Controller
         return $studentSummaries;
     }
 
-    /**
-     * Calculate attendance status for a specific day
-     */
     private function calculateDayStatus($studentId, $date, $schedules, $attendanceData, $isNonSchoolDay): string
     {
-        // Skip weekends and holidays (no classes scheduled)
         if ($isNonSchoolDay) {
             return 'no_class';
         }
 
-        // Get attendance records for this student on this date
         $dayAttendance = $attendanceData[$studentId][$date] ?? collect();
 
-        // If no attendance records, assume absent (if there should be classes)
         if ($dayAttendance->isEmpty()) {
             return $schedules->isNotEmpty() ? 'absent' : 'no_class';
         }
 
-        // Count attendance by status
         $totalSubjects = $schedules->count();
         $attendedSubjects = $dayAttendance->whereIn('status', ['present', 'late'])->count();
         $recordedSubjects = $dayAttendance->count();
 
-        // Determine day status based on attendance
         if ($attendedSubjects == $totalSubjects && $recordedSubjects == $totalSubjects) {
-            return 'present'; // Present for all subjects
+            return 'present';
         } elseif ($attendedSubjects > 0) {
-            return 'half_day'; // Present for some subjects, absent for others
+            return 'half_day';
         } else {
-            return 'absent'; // Absent for all subjects or marked absent for all recorded subjects
+            return 'absent';
         }
     }
 
-    /**
-     * Check if a date is a holiday
-     */
-    private function isHoliday($date): bool
-    {
-        // Implement your holiday checking logic here
-        // You might have a holidays table or use a holiday API
-        return false;
-    }
-
-    /**
-     * Calculate attendance rate
-     */
     private function calculateAttendanceRate($summary): float
     {
         $totalSchoolDays = $summary['present_days'] + $summary['half_days'] + $summary['absent_days'];
@@ -267,15 +229,11 @@ class MonthlyAttendanceController extends Controller
             return 0;
         }
 
-        // Calculate rate: present days + (half days * 0.5)
         $attendanceScore = $summary['present_days'] + ($summary['half_days'] * 0.5);
 
         return round(($attendanceScore / $totalSchoolDays) * 100, 2);
     }
 
-    /**
-     * Calculate overall class statistics
-     */
     private function calculateClassStatistics($studentSummaries): array
     {
         if (empty($studentSummaries)) {
@@ -301,22 +259,5 @@ class MonthlyAttendanceController extends Controller
             'students_above_90' => $above90,
             'students_below_75' => $below75
         ];
-    }
-
-    /**
-     * Return error response
-     */
-    private function errorResponse($message, $statusCode = 500, $error = null)
-    {
-        $response = [
-            'success' => false,
-            'message' => $message
-        ];
-
-        if ($error) {
-            $response['error'] = $error;
-        }
-
-        return response()->json($response, $statusCode);
     }
 }
