@@ -8,24 +8,13 @@ use Illuminate\Validation\Rule;
 
 class RegisterRequest extends FormRequest
 {
-    /**
-     * Determine if the user is authorized to make this request.
-     */
     public function authorize(): bool
     {
         return true;
     }
 
-    /**
-     * Get the validation rules that apply to the request.
-     *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
-     */
     public function rules(): array
     {
-        /**
-         * Validation rules for user registration.
-         */
         return [
             'LRN' => 'required|string|max:12|unique:students,LRN',
             'first_name' => 'required|string|max:255',
@@ -39,7 +28,7 @@ class RegisterRequest extends FormRequest
             'relationship_to_student' => 'nullable|string|max:255',
             'parents_number' => 'nullable|string|max:15',
             'parents_email' => 'nullable|email',
-            'image' => 'nullable|image|mimes:jpg,png,jpeg,tmp' // tmp is for testing only
+            'image' => 'nullable|image|mimes:jpg,png,jpeg', // Changed: nullable and removed tmp
         ];
     }
 }
