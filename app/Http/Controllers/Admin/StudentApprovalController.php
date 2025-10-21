@@ -7,6 +7,8 @@ use App\Mail\RegistrationApprovedMail;
 use App\Models\Request as ModelsRequest;
 use App\Models\Student;
 use App\Models\User;
+use App\Notifications\AccountApprovedNotification;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -99,6 +101,7 @@ class StudentApprovalController extends Controller
 
             // Send approval email
             Mail::to($studentRequest->email)->send(new RegistrationApprovedMail($user));
+            $user->notify(new AccountApprovedNotification($user));
 
             DB::commit();
 

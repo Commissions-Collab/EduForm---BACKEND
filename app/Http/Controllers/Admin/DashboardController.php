@@ -155,8 +155,8 @@ class DashboardController extends Controller
             }
         }
 
-        // Calculate improvement (comparing to previous week - simplified)
-        $improvement = '+2.1%'; // This would need more complex calculation
+        $activeUser = Enrollment::where('enrollment_status', 'enrolled')
+            ->count();
 
         return response()->json([
             'success' => true,
@@ -189,15 +189,12 @@ class DashboardController extends Controller
                     'attendance_trends' => [
                         'average_daily' => $averageDaily,
                         'best_day' => $bestDay ?: 'No data',
-                        'improvement' => $improvement
                     ],
                     'academic_updates' => [
                         'grades_submitted' => $gradesSubmittedPercentage,
-                        'reports_generated' => 156, // This would come from actual reports table
-                        'pending_reviews' => 23 // This would come from actual reviews table
                     ],
                     'system_status' => [
-                        'active_users' => 1089 // This would come from active sessions
+                        'active_users' => $activeUser // This would come from active sessions
                     ]
                 ],
                 'section_info' => [
