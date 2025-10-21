@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\RegisterRequest;
+use App\Mail\RegistrationApprovedMail;
 use App\Models\Request as ModelsRequest;
 use App\Models\Student;
 use App\Models\User;
@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 
 class StudentApprovalController extends Controller
 {
@@ -22,9 +23,7 @@ class StudentApprovalController extends Controller
             ->latest()
             ->paginate(10);
 
-        return response()->json([
-            'requests' => $requests
-        ]);
+        return response()->json(['requests' => $requests]);
     }
 
     public function pending()
@@ -34,9 +33,7 @@ class StudentApprovalController extends Controller
             ->latest()
             ->paginate(10);
 
-        return response()->json([
-            'requests' => $requests
-        ]);
+        return response()->json(['requests' => $requests]);
     }
 
     public function rejected()
@@ -46,22 +43,14 @@ class StudentApprovalController extends Controller
             ->latest()
             ->paginate(10);
 
-        return response()->json([
-            'requests' => $requests
-        ]);
+        return response()->json(['requests' => $requests]);
     }
 
-    /** @var \App\Models\Request $studentRequest 
-     * 
-    */
     public function approvedStudents($id)
     {
         DB::beginTransaction();
 
         try {
-            /** 
-             * @var \App\Models\Request $studentRequest 
-             */
             $studentRequest = ModelsRequest::find($id);
 
             if (!$studentRequest) {
@@ -78,7 +67,16 @@ class StudentApprovalController extends Controller
                 'email' => $studentRequest->email,
                 'password' => $studentRequest->password,
                 'role' => 'student',
+                'first_name' => $studentRequest->first_name,
+                'middle_name' => $studentRequest->middle_name,
+                'last_name' => $studentRequest->last_name,
             ]);
+
+            // Handle image upload
+            $imagePath = null;
+            if ($studentRequest->image) {
+                $imagePath = $studentRequest->image; // If already stored, keep it
+            }
 
             // Create student profile
             $student = Student::create([
@@ -94,19 +92,21 @@ class StudentApprovalController extends Controller
                 'relationship_to_student' => $studentRequest->relationship_to_student,
                 'parent_guardian_phone' => $studentRequest->parents_number,
                 'parent_guardian_email' => $studentRequest->parents_email,
-                'image' => $studentRequest->image,
+                'image' => $imagePath,
             ]);
 
             // Mark request as approved
             $studentRequest->status = 'approved';
             $studentRequest->save();
 
+            // Send approval email
+            Mail::to($studentRequest->email)->send(new RegistrationApprovedMail($user));
             $user->notify(new AccountApprovedNotification($user));
 
             DB::commit();
 
             return response()->json([
-                'message' => 'Student request approved successfully',
+                'message' => 'Student request approved successfully. Approval email sent.',
                 'user' => $user,
                 'student' => $student,
                 'request' => $studentRequest
@@ -114,20 +114,17 @@ class StudentApprovalController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
-                'error' => 'Registration failed',
+                'error' => 'Registration approval failed',
                 'message' => $th->getMessage()
             ], 500);
         }
     }
 
-    public function rejectApproval($id) {
+    public function rejectApproval($id)
+    {
         DB::beginTransaction();
 
         try {
-            /** 
-             * @var \App\Models\Request $studentRequest 
-             */
-
             $studentRequest = ModelsRequest::find($id);
 
             if (!$studentRequest) {
@@ -151,7 +148,7 @@ class StudentApprovalController extends Controller
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
-                'error' => 'Registration failed',
+                'error' => 'Rejection failed',
                 'message' => $th->getMessage()
             ], 500);
         }

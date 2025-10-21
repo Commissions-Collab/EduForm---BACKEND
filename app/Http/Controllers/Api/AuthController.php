@@ -27,6 +27,12 @@ class AuthController extends Controller
         DB::beginTransaction();
 
         try {
+            // Handle image upload
+            $imagePath = null;
+            if ($request->hasFile('image')) {
+                $imagePath = $request->file('image')->store('student-images', 'public');
+            }
+
             $requestUser = ModelsRequest::create([
                 'request_to' => 2,
                 'request_type' => 'student_signup',
@@ -34,32 +40,31 @@ class AuthController extends Controller
                 'password' => Hash::make($data['password']),
                 'LRN' => $data['LRN'],
                 'first_name' => $data['first_name'],
-                'middle_name' => $data['middle_name'],
+                'middle_name' => $data['middle_name'] ?? null,
                 'last_name' => $data['last_name'],
                 'birthday' => $data['birthday'],
                 'gender' => $data['gender'],
-                'parents_fullname' => $data['parents_fullname'],
-                'relationship_to_student' => $data['relationship_to_student'],
-                'parents_number' => $data['parents_number'],
+                'parents_fullname' => $data['parents_fullname'] ?? null,
+                'relationship_to_student' => $data['relationship_to_student'] ?? null,
+                'parents_number' => $data['parents_number'] ?? null,
                 'parents_email' => $data['parents_email'] ?? null,
-                'image' => $data['image'],
+                'image' => $imagePath, // Can be null
                 'role' => 'student',
                 'status' => 'pending'
             ]);
 
             DB::commit();
 
-            /**
-             * Redirect back to login page
-             * Tell that they need super admin approval
-             */
             return response()->json([
                 'message' => 'Registration request submitted. Awaiting approval.',
                 'request' => $requestUser,
             ], 202);
         } catch (\Throwable $th) {
             DB::rollBack();
-            return response()->json(['error' => 'Registration failed', 'message' => $th->getMessage()], 500);
+            return response()->json([
+                'error' => 'Registration failed',
+                'message' => $th->getMessage()
+            ], 500);
         }
     }
 
