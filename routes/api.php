@@ -83,7 +83,7 @@ Route::middleware('auth:sanctum')->group(function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
 
-    
+
 
         Route::prefix('admin')->group(function () {
 
@@ -167,9 +167,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/academic-calendar/year/{academic_year_id}', 'getByYear');
             });
 
-            Route::put('/students/{id}/approve', [SuperAdminStudentApprovalController, 'approve']);
+            Route::put('/students/{id}/approve', [SuperAdminStudentApprovalController::class, 'approve']);
             Route::delete('/students/{id}/reject', [SuperAdminStudentApprovalController::class, 'reject']);
-
         });
     });
 
