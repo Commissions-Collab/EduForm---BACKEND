@@ -15,6 +15,16 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => \App\Http\Middleware\RoleMiddleware::class,
         ]);
+        
+        // Add CORS middleware to API routes
+        $middleware->api([
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
+        
+        // Handle preflight requests globally
+        $middleware->group('web', [
+            \Illuminate\Http\Middleware\HandleCors::class,
+        ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //
