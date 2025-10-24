@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use PhpParser\Node\Stmt\TryCatch;
 
 class AcademicYearController extends Controller
 {
@@ -14,6 +13,8 @@ class AcademicYearController extends Controller
     public function index()
     {
         $academicYears = AcademicYear::select(['id', 'name', 'start_date', 'end_date', 'is_current', 'updated_at'])
+            ->orderBy('is_current', 'desc')
+            ->orderBy('created_at', 'desc')
             ->paginate('20');
 
         return response()->json([
@@ -30,8 +31,8 @@ class AcademicYearController extends Controller
         try {
             $validated = $request->validate([
                 'name' => 'required|string|unique:academic_years,name',
-                'start_date' => 'required|date',
-                'end_date' => 'required|date|after_or_equal:start_date',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
                 'is_current' => 'boolean'
             ]);
 
@@ -48,14 +49,14 @@ class AcademicYearController extends Controller
                 'success' => true,
                 'message' => 'Academic Year created successfully',
                 'data' => $academicYear
-            ]);
+            ], 201);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
                 "success" => false,
                 'message' => 'Error in creation of academic year',
                 'error' => $th->getMessage()
-            ]);
+            ], 500);
         }
     }
 
@@ -67,13 +68,16 @@ class AcademicYearController extends Controller
         try {
             $year = AcademicYear::find($id);
             if (!$year) {
-                return response()->json(['message' => 'Academic Year not found'], 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Academic Year not found'
+                ], 404);
             }
 
             $validated = $request->validate([
                 'name' => 'sometimes|required|string|unique:academic_years,name,' . $id,
-                'start_date' => 'sometimes|required|date',
-                'end_date' => 'sometimes|required|date|after_or_equal:start_date',
+                'start_date' => 'nullable|date',
+                'end_date' => 'nullable|date|after_or_equal:start_date',
                 'is_current' => 'boolean'
             ]);
 
@@ -88,6 +92,7 @@ class AcademicYearController extends Controller
             DB::commit();
 
             return response()->json([
+                'success' => true,
                 'message' => 'Academic Year updated successfully'
             ], 200);
         } catch (\Throwable $th) {
@@ -96,7 +101,7 @@ class AcademicYearController extends Controller
                 "success" => false,
                 'message' => 'Server error',
                 'error' => $th->getMessage()
-            ]);
+            ], 500);
         }
     }
 
@@ -108,13 +113,17 @@ class AcademicYearController extends Controller
         try {
             $year = AcademicYear::find($id);
             if (!$year) {
-                return response()->json(['message' => 'Academic Year not found'], 404);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Academic Year not found'
+                ], 404);
             }
 
             $year->delete();
 
             DB::commit();
             return response()->json([
+                'success' => true,
                 'message' => 'Academic Year deleted successfully'
             ], 200);
         } catch (\Throwable $th) {
@@ -123,7 +132,7 @@ class AcademicYearController extends Controller
                 "success" => false,
                 'message' => 'Server Error',
                 'error' => $th->getMessage()
-            ]);
+            ], 500);
         }
     }
 }
