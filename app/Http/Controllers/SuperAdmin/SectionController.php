@@ -6,32 +6,17 @@ use App\Http\Controllers\Controller;
 use App\Models\Section;
 use App\Models\YearLevel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class SectionController extends Controller
 {
     public function index()
     {
-        try {
-            $sections = Section::with(['yearLevel:id,name', 'academicYear:id,name'])
-                ->select('id', 'year_level_id', 'academic_year_id', 'name', 'strand', 'room', 'capacity')
-                ->paginate(20);
+        $sections = Section::with(['yearLevel:id,name', 'academicYear:id,name'])
+            ->select('id', 'year_level_id', 'academic_year_id', 'name', 'strand', 'room', 'capacity')
+            ->paginate(20);
 
-            return response()->json([
-                'success' => true,
-                'data' => $sections,
-            ]);
-        } catch (\Throwable $th) {
-            \Log::error('Error in SectionController@index', [
-                'message' => $th->getMessage(),
-                'trace' => $th->getTraceAsString(),
-            ]);
-
-            return response()->json([
-                'success' => false,
-                'message' => 'Error fetching sections',
-                'error' => $th->getMessage(),
-            ], 500);
-        }
+        return response()->json($sections);
     }
 
     public function store(Request $request)
@@ -67,7 +52,7 @@ class SectionController extends Controller
                 'errors' => $e->errors(),
             ], 422);
         } catch (\Throwable $th) {
-            \Log::error('Error creating section', [
+            Log::error('Error creating section', [
                 'message' => $th->getMessage(),
                 'trace' => $th->getTraceAsString(),
             ]);
@@ -108,7 +93,7 @@ class SectionController extends Controller
                 'message' => 'Section updated successfully.',
             ], 200);
         } catch (\Throwable $th) {
-            \Log::error('Error updating section', [
+            Log::error('Error updating section', [
                 'message' => $th->getMessage(),
                 'trace' => $th->getTraceAsString(),
             ]);
@@ -132,7 +117,7 @@ class SectionController extends Controller
                 'message' => 'Section deleted successfully.',
             ]);
         } catch (\Throwable $th) {
-            \Log::error('Error deleting section', [
+            Log::error('Error deleting section', [
                 'message' => $th->getMessage(),
                 'trace' => $th->getTraceAsString(),
             ]);

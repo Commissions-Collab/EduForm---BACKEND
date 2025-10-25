@@ -425,4 +425,118 @@ class TeacherController extends Controller
             ], 500);
         }
     }
+
+    public function assignTeacherSubjects(Request $request)
+    {
+        DB::beginTransaction();
+
+        try {
+            $validated = $request->validate([
+                'teacher_id' => 'required|exists:teachers,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'assignments' => 'required|array|min:1',
+                'assignments.*.subject_id' => 'required|exists:subjects,id',
+                'assignments.*.section_id' => 'nullable|exists:sections,id',
+                'assignments.*.quarter_id' => 'nullable|exists:quarters,id',
+            ]);
+
+            $teacherId = $validated['teacher_id'];
+            $academicYearId = $validated['academic_year_id'];
+
+            $createdAssignments = [];
+
+            foreach ($validated['assignments'] as $data) {
+                // Check if the subject is already assigned to this teacher in this academic year
+                $exists = \App\Models\TeacherSubject::where('teacher_id', $teacherId)
+                    ->where('subject_id', $data['subject_id'])
+                    ->where('academic_year_id', $academicYearId)
+                    ->exists();
+
+                if ($exists) {
+                    $subject = \App\Models\Subject::find($data['subject_id']);
+                    DB::rollBack();
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Subject '{$subject->name}' is already assigned to this teacher for the selected academic year.",
+                    ], 409);
+                }
+
+                $createdAssignments[] = \App\Models\TeacherSubject::create([
+                    'teacher_id' => $teacherId,
+                    'subject_id' => $data['subject_id'],
+                    'section_id' => $data['section_id'] ?? null,
+                    'academic_year_id' => $academicYearId,
+                    'quarter_id' => $data['quarter_id'] ?? null,
+                ]);
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Subjects successfully assigned to teacher.',
+                'data' => $createdAssignments
+            ], 201);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            DB::rollBack();
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed.',
+                'errors' => $e->errors(),
+            ], 422);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            Log::error('Error assigning subjects to teacher: ' . $e->getMessage(), [
+                'teacher_id' => $request->input('teacher_id'),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'An unexpected error occurred while assigning subjects.',
+                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
+    }
+
+    public function getSubjects()
+    {
+        try {
+            $subjects = \App\Models\Subject::select('id', 'name')
+                ->orderBy('name', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $subjects
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch subjects.',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getSectionsByAcademicYear($academicYearId)
+    {
+        try {
+            $sections = \App\Models\Section::where('academic_year_id', $academicYearId)
+                ->select('id', 'name', 'academic_year_id')
+                ->orderBy('name', 'asc')
+                ->get();
+
+            return response()->json([
+                'success' => true,
+                'data' => $sections
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch sections.',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+    }
 }

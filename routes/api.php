@@ -32,7 +32,9 @@ use App\Http\Controllers\SuperAdmin\StudentRecordController;
 use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\SuperAdmin\QuarterManagement;
 use App\Http\Controllers\SuperAdmin\StudentApprovalController as SuperAdminStudentApprovalController;
+use App\Http\Controllers\SuperAdmin\SubjectController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -77,7 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
      * Super admin routes
      * These routes are accessible only to users with the 'super_admin' role.
      */
-    Route::middleware(['auth:sanctum', 'role:super_admin'])->group(function () {
+    Route::middleware('role:super_admin')->group(function () {
         // Super admin only routes
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
@@ -100,6 +102,16 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::delete('/academic-years/{id}', 'destroy');
             });
 
+            // Quarter Management
+            Route::controller(QuarterManagement::class)->group(function () {
+                Route::get('/quarters', 'index');
+                Route::post('/quarters', 'store');
+                Route::get('/quarters/{id}', 'show');
+                Route::patch('/quarters/{id}', 'update');
+                Route::delete('/quarters/{id}', 'destroy');
+                Route::get('/quarters/academic-year/{academicYearId}', 'getByAcademicYear');
+            });
+
             // Year Level Management
             Route::controller(Year_levelsController::class)->group(function () {
                 Route::get('/year-level', 'index');
@@ -114,6 +126,15 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/section', 'store');
                 Route::patch('/section/{id}', 'update');
                 Route::delete('/section/{id}', 'delete');
+            });
+
+            // Subject Management
+            Route::controller(SubjectController::class)->group(function () {
+                Route::get('/subjects', 'index');
+                Route::post('/subjects', 'store');
+                Route::put('/subjects/{id}', 'update');
+                Route::delete('/subjects/{id}', 'delete');
+                Route::patch('/subjects/{id}/toggle-status', 'toggleStatus');
             });
 
             /**
@@ -134,11 +155,14 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::controller(TeacherController::class)->group(function () {
                 Route::get('/teacher/filter-options', 'getFilterOptions');
                 Route::get('/teacher', action: 'index');
+                Route::get('/teacher/subjects', 'getSubjects');
+                Route::get('/teacher/sections/{academicYearId}', 'getSectionsByAcademicYear');
                 Route::post('/teacher', 'store');
                 Route::put('/teacher/{id}', 'update');
                 Route::delete('/teacher/{id}', 'delete');
                 Route::post('/teacher/schedule', 'createTeacherSchedule');
                 Route::post('/teacher/assign-adviser', 'assignTeacherSectionAdviser');
+                Route::post('/teacher/assign-subjects', 'assignTeacherSubjects');
             });
 
             // Student Record Management

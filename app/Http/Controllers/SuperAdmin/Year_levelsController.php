@@ -13,12 +13,9 @@ class Year_levelsController extends Controller
     {
         $yearLevel = YearLevel::select(['id', 'name', 'code', 'sort_order', 'updated_at'])
             ->orderBy('sort_order')
-            ->paginate('20');
+            ->paginate(20);
 
-        return response()->json([
-            'success' => true,
-            'yearLevel' => $yearLevel
-        ]);
+        return response()->json($yearLevel);
     }
 
     public function store(Request $request)
