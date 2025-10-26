@@ -38,20 +38,32 @@ class SubjectController extends Controller
         DB::beginTransaction();
 
         try {
-            $validated = $request->validate([
-                'subjects' => 'required|array|min:1',
-                'subjects.*.name' => 'required|string|max:255',
-                'subjects.*.code' => 'required|string|max:255|unique:subjects,code',
-                'subjects.*.description' => 'nullable|string',
-                'subjects.*.units' => 'required|integer|min:1|max:10',
-                'subjects.*.is_active' => 'boolean',
-            ]);
+            $validated = $request->validate(
+                [
+                    'subjects' => 'required|array|min:1',
+                    'subjects.*.name' => 'required|string|max:255|unique:subjects,name',
+                    'subjects.*.code' => 'required|string|max:255|unique:subjects,code',
+                    'subjects.*.description' => 'nullable|string',
+                    'subjects.*.units' => 'required|integer|min:1|max:10',
+                    'subjects.*.is_active' => 'boolean',
+                ],
+                [
+                    'subjects.required' => 'Please add at least one subject.',
+                    'subjects.*.name.required' => 'Subject name is required.',
+                    'subjects.*.name.unique' => 'Subject name already exists.',
+                    'subjects.*.code.required' => 'Subject code is required.',
+                    'subjects.*.code.unique' => 'Subject code already exists.',
+                    'subjects.*.units.required' => 'Units field is required.',
+                    'subjects.*.units.min' => 'Units must be at least 1.',
+                    'subjects.*.units.max' => 'Units cannot exceed 10.',
+                ]
+            );
 
             $createdSubjects = [];
 
             foreach ($validated['subjects'] as $subjectData) {
                 $subject = Subject::create([
-                    'name' => $subjectData['name'],
+                    'name' => ucwords(strtolower($subjectData['name'])),
                     'code' => strtoupper($subjectData['code']),
                     'description' => $subjectData['description'] ?? null,
                     'units' => $subjectData['units'],
@@ -97,16 +109,27 @@ class SubjectController extends Controller
         try {
             $subject = Subject::findOrFail($id);
 
-            $validated = $request->validate([
-                'name' => 'required|string|max:255',
-                'code' => 'required|string|max:255|unique:subjects,code,' . $id,
-                'description' => 'nullable|string',
-                'units' => 'required|integer|min:1|max:10',
-                'is_active' => 'boolean',
-            ]);
+            $validated = $request->validate(
+                [
+                    'name' => 'required|string|max:255|unique:subjects,name,' . $id,
+                    'code' => 'required|string|max:255|unique:subjects,code,' . $id,
+                    'description' => 'nullable|string',
+                    'units' => 'required|integer|min:1|max:10',
+                    'is_active' => 'boolean',
+                ],
+                [
+                    'name.required' => 'Subject name is required.',
+                    'name.unique' => 'Subject name already exists.',
+                    'code.required' => 'Subject code is required.',
+                    'code.unique' => 'Subject code already exists.',
+                    'units.required' => 'Units field is required.',
+                    'units.min' => 'Units must be at least 1.',
+                    'units.max' => 'Units cannot exceed 10.',
+                ]
+            );
 
             $subject->update([
-                'name' => $validated['name'],
+                'name' => ucwords(strtolower($validated['name'])),
                 'code' => strtoupper($validated['code']),
                 'description' => $validated['description'] ?? null,
                 'units' => $validated['units'],

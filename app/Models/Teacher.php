@@ -21,7 +21,8 @@ class Teacher extends Model
         'address',
         'phone',
         'hire_date',
-        'employment_status'
+        'employment_status',
+        'specialization',
     ];
 
     protected function casts(): array

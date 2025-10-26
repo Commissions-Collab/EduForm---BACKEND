@@ -154,7 +154,7 @@ Route::middleware('auth:sanctum')->group(function () {
             // Teacher Management
             Route::controller(TeacherController::class)->group(function () {
                 Route::get('/teacher/filter-options', 'getFilterOptions');
-                Route::get('/teacher', action: 'index');
+                Route::get('/teacher', 'index');
                 Route::get('/teacher/subjects', 'getSubjects');
                 Route::get('/teacher/sections/{academicYearId}', 'getSectionsByAcademicYear');
                 Route::post('/teacher', 'store');
@@ -163,6 +163,12 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/teacher/schedule', 'createTeacherSchedule');
                 Route::post('/teacher/assign-adviser', 'assignTeacherSectionAdviser');
                 Route::post('/teacher/assign-subjects', 'assignTeacherSubjects');
+                Route::delete('/teacher/{teacherId}/remove-adviser/{academicYearId}', 'removeTeacherSectionAdviser');
+                Route::get('/teacher/available-sections/{academicYearId}', 'getAvailableSections');
+                Route::get('/{id}/details', 'getTeacherDetails');
+                Route::get('/teacher/{teacherId}/subjects/{academicYearId}', 'getAssignedSubjects');
+                Route::get('/teacher/{teacherId}/subjects/{academicYearId}/available', 'getAvailableSubjectsForAssignment');
+                Route::get('/teacher/{teacherId}/subjects/{academicYearId}/assigned', 'getAssignedSubjectsOnly');
             });
 
             // Student Record Management

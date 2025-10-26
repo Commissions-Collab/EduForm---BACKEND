@@ -10,6 +10,7 @@ use App\Models\Section;
 use App\Models\SectionAdvisor;
 use App\Models\Subject;
 use App\Models\Teacher;
+use App\Models\TeacherSubject;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -371,38 +372,46 @@ class TeacherController extends Controller
                 'academic_year_id' => 'required|exists:academic_years,id'
             ]);
 
-            // Check if the section already has an adviser for the given academic year
+            $hasAdvisory = SectionAdvisor::where('teacher_id', $validated['teacher_id'])
+                ->where('academic_year_id', $validated['academic_year_id'])
+                ->exists();
+
+            if ($hasAdvisory) {
+                $teacher = Teacher::find($validated['teacher_id']);
+                $academicYear = AcademicYear::find($validated['academic_year_id']);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => "{$teacher->fullName()} already has an advisory for {$academicYear->name}.",
+                ], 409);
+            }
+
             $existingAdviser = SectionAdvisor::where('section_id', $validated['section_id'])
                 ->where('academic_year_id', $validated['academic_year_id'])
-                ->first();
+                ->exists();
 
             if ($existingAdviser) {
-                // Get section and academic year names for better error message
                 $section = Section::find($validated['section_id']);
                 $academicYear = AcademicYear::find($validated['academic_year_id']);
 
                 return response()->json([
                     'success' => false,
-                    'message' => ($section ? $section->name : 'This section') .
-                        ' already has an adviser assigned for ' .
-                        ($academicYear ? $academicYear->name : 'the given academic year') . '.',
+                    'message' => "{$section->name} already has an adviser for {$academicYear->name}.",
                 ], 409);
             }
 
-            // Assign new adviser
-            $data = SectionAdvisor::create([
+            $advisor = SectionAdvisor::create([
                 'section_id' => $validated['section_id'],
                 'teacher_id' => $validated['teacher_id'],
-                'academic_year_id' => $validated['academic_year_id']
+                'academic_year_id' => $validated['academic_year_id'],
             ]);
 
-            // Load relationships for response
-            $data->load(['section', 'teacher', 'academicYear']);
+            $advisor->load(['section', 'teacher', 'academicYear']);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Teacher successfully assigned as section adviser.',
-                'data' => $data
+                'data' => $advisor,
             ], 201);
         } catch (\Illuminate\Validation\ValidationException $e) {
             return response()->json([
@@ -410,18 +419,15 @@ class TeacherController extends Controller
                 'message' => 'Validation failed.',
                 'errors' => $e->errors(),
             ], 422);
-        } catch (\Exception $e) {
-            Log::error('Error assigning teacher as adviser: ' . $e->getMessage(), [
-                'section_id' => $request->input('section_id'),
-                'teacher_id' => $request->input('teacher_id'),
-                'academic_year_id' => $request->input('academic_year_id'),
-                'trace' => $e->getTraceAsString()
+        } catch (\Throwable $th) {
+            Log::error('Error assigning teacher adviser', [
+                'error' => $th->getMessage(),
+                'trace' => $th->getTraceAsString(),
             ]);
 
             return response()->json([
                 'success' => false,
-                'message' => 'An unexpected error occurred while assigning adviser.',
-                'error' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'message' => 'Internal server error.',
             ], 500);
         }
     }
@@ -536,6 +542,176 @@ class TeacherController extends Controller
                 'success' => false,
                 'message' => 'Failed to fetch sections.',
                 'error' => $th->getMessage()
+            ], 500);
+        }
+    }
+
+    public function getAvailableSections(Request $request, $academicYearId)
+    {
+        $teacherId = $request->query('teacher_id'); // optional param
+
+        $sections = Section::where(function ($query) use ($academicYearId, $teacherId) {
+            // Sections without adviser
+            $query->whereDoesntHave('sectionAdvisors', function ($sub) use ($academicYearId) {
+                $sub->where('academic_year_id', $academicYearId);
+            });
+
+            // OR the section already assigned to this teacher
+            if ($teacherId) {
+                $query->orWhereHas('sectionAdvisors', function ($sub) use ($academicYearId, $teacherId) {
+                    $sub->where('academic_year_id', $academicYearId)
+                        ->where('teacher_id', $teacherId);
+                });
+            }
+        })
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'success' => true,
+            'data' => $sections
+        ]);
+    }
+
+    public function getAvailableSubjectsForAssignment($teacherId, $academicYearId)
+    {
+        try {
+            // Subjects already assigned to this teacher for the year
+            $assigned = TeacherSubject::where('teacher_id', $teacherId)
+                ->where('academic_year_id', $academicYearId)
+                ->pluck('subject_id');
+
+            // Only show subjects NOT assigned yet
+            $subjects = Subject::whereNotIn('id', $assigned)
+                ->select('id', 'name')
+                ->orderBy('name', 'asc')
+                ->get()
+                ->unique('name')
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $subjects,
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch available subjects.',
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+
+    public function getAssignedSubjectsOnly($teacherId, $academicYearId)
+    {
+        try {
+            // Get only subjects the teacher already has
+            $subjects = \App\Models\TeacherSubject::with('subject:id,name')
+                ->where('teacher_id', $teacherId)
+                ->where('academic_year_id', $academicYearId)
+                ->get()
+                ->pluck('subject')
+                ->unique('name') // remove duplicates by name
+                ->values();
+
+            return response()->json([
+                'success' => true,
+                'data' => $subjects,
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch assigned subjects.',
+                'error' => $th->getMessage(),
+            ], 500);
+        }
+    }
+
+
+
+    public function getTeacherDetails($id)
+    {
+        $teacher = Teacher::with([
+            'user:id,email',
+            'sectionAdvisors.section:id,name',
+            'sectionAdvisors.academicYear:id,name,is_current',
+            'teacherSubjects.subject:id,name,code',
+            'teacherSubjects.section:id,name',
+            'teacherSubjects.academicYear:id,name',
+            'schedules.section:id,name',
+        ])->find($id);
+
+        if (!$teacher) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Teacher not found.',
+            ], 404);
+        }
+
+        return response()->json([
+            'success' => true,
+            'data' => $teacher
+        ]);
+    }
+
+    public function getAssignedSubjects($teacherId, $academicYearId)
+    {
+        try {
+            $subjects = \App\Models\TeacherSubject::with('subject:id,name')
+                ->where('teacher_id', $teacherId)
+                ->where('academic_year_id', $academicYearId)
+                ->get()
+                ->pluck('subject');
+
+            return response()->json([
+                'success' => true,
+                'data' => $subjects
+            ]);
+        } catch (\Throwable $th) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch assigned subjects.',
+                'error' => $th->getMessage()
+            ], 500);
+        }
+    }
+
+    public function removeTeacherSectionAdviser($teacherId, $academicYearId)
+    {
+        try {
+            $teacher = Teacher::findOrFail($teacherId);
+            $academicYear = AcademicYear::findOrFail($academicYearId);
+
+            $advisor = SectionAdvisor::where('teacher_id', $teacherId)
+                ->where('academic_year_id', $academicYearId)
+                ->first();
+
+            if (!$advisor) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No adviser record found for this teacher in the selected academic year.',
+                ], 404);
+            }
+
+            $advisor->delete();
+
+            return response()->json([
+                'success' => true,
+                'message' => "Adviser record for {$teacher->first_name} {$teacher->last_name} removed successfully.",
+            ], 200);
+        } catch (\Throwable $th) {
+            Log::error('Error removing teacher adviser', [
+                'error' => $th->getMessage(),
+                'teacher_id' => $teacherId,
+                'academic_year_id' => $academicYearId,
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'message' => 'Internal server error.',
+                'error' => config('app.debug') ? $th->getMessage() : null,
             ], 500);
         }
     }
