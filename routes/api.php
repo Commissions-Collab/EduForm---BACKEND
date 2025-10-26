@@ -141,14 +141,22 @@ Route::middleware('auth:sanctum')->group(function () {
              * Enrollment Management
              */
             Route::controller(EnrollmentController::class)->group(function () {
+                // Enrollments CRUD Operations
                 Route::get('/enrollments', 'index');
-                Route::get('/students', 'index');
                 Route::post('/enrollments', 'store');
-                Route::post('/enrollments/bulk-store', 'bulkStore');
                 Route::get('/enrollments/{id}', 'show');
                 Route::put('/enrollments/{id}', 'update');
                 Route::delete('/enrollments/{id}', 'destroy');
+
+                // Bulk Operations
+                Route::post('/enrollments/bulk-store', 'bulkStore');
                 Route::post('/enrollments/promote', 'promote');
+
+                // Dropdown/Filter Data Endpoints - THESE ARE THE NEW ROUTES
+                Route::get('/enrollment-students', 'getStudents');
+                Route::get('/enrollment-academic-years', 'getAcademicYears');
+                Route::get('/enrollment-year-levels', 'getYearLevels');
+                Route::get('/enrollment-sections', 'getSections');
             });
 
             // Teacher Management
