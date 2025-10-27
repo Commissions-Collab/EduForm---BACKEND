@@ -672,11 +672,32 @@ class AttendanceController extends Controller
     // Helper methods remain the same
     private function getCurrentAcademicYear($academicYearId = null)
     {
-        if ($academicYearId) {
-            return AcademicYear::findOrFail($academicYearId);
-        }
+        try {
+            if ($academicYearId) {
+                return AcademicYear::findOrFail($academicYearId);
+            }
 
-        return AcademicYear::where('is_current', true)->firstOrFail();
+            // Try with boolean first
+            $academicYear = AcademicYear::where('is_current', true)->first();
+
+            // If not found, try with integer 1
+            if (!$academicYear) {
+                $academicYear = AcademicYear::where('is_current', 1)->first();
+            }
+
+            // If still not found, get the most recent one
+            if (!$academicYear) {
+                $academicYear = AcademicYear::orderBy('id', 'desc')->first();
+            }
+
+            if (!$academicYear) {
+                throw new \Exception('No academic year found in database');
+            }
+
+            return $academicYear;
+        } catch (\Exception $e) {
+            throw $e;
+        }
     }
 
     private function getCurrentQuarter($academicYearId = null)

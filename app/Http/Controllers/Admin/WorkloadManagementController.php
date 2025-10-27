@@ -219,8 +219,28 @@ class WorkloadManagementController extends Controller
 
     private function getCurrentAcademicYear()
     {
-        return AcademicYear::where('is_current', true)->first()
-            ?? AcademicYear::latest()->first();
+        try {
+            // Try with boolean true first
+            $academicYear = AcademicYear::where('is_current', true)->first();
+
+            // If not found, try with integer 1
+            if (!$academicYear) {
+                $academicYear = AcademicYear::where('is_current', 1)->first();
+            }
+
+            // If still not found, get the most recent one
+            if (!$academicYear) {
+                $academicYear = AcademicYear::orderBy('id', 'desc')->first();
+            }
+
+            if (!$academicYear) {
+                throw new \Exception('No academic year found in database');
+            }
+
+            return $academicYear;
+        } catch (\Exception $e) {
+            throw $e;
+        }
     }
 
     private function getCurrentQuarter($academicYearId)
