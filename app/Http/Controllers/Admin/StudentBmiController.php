@@ -53,7 +53,7 @@ class StudentBmiController extends Controller
                 'weight' => $bmi->weight_kg ?? null,
                 'bmi' => $bmi->bmi ?? null,
                 'bmi_status' => $bmi->bmi_category ?? null,
-                'bmi_record_id' => $bmi->id ?? null, // ADD THIS LINE - This is the ID needed for updates/deletes
+                'bmi_record_id' => $bmi->id ?? null,
                 'remarks' => $bmi->remarks ?? null,
             ];
         });
@@ -78,13 +78,27 @@ class StudentBmiController extends Controller
                 'student_id' => ['required', 'exists:students,id'],
                 'academic_year_id' => ['required', 'exists:academic_years,id'],
                 'quarter_id' => ['required', 'exists:quarters,id'],
-                'recorded_at' => ['nullable', 'date',],
+                'recorded_at' => ['nullable', 'date'],
                 'height_cm' => ['required', 'numeric'],
                 'weight_kg' => ['required', 'numeric'],
                 'bmi' => ['nullable', 'numeric'],
                 'bmi_category' => ['nullable', 'string'],
                 'remarks' => ['nullable', 'string']
             ]);
+
+            // Check for existing record
+            $existingRecord = StudentBmi::where([
+                'student_id' => $request->student_id,
+                'academic_year_id' => $request->academic_year_id,
+                'quarter_id' => $request->quarter_id,
+            ])->first();
+
+            if ($existingRecord) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'BMI record already exists for this student in the selected academic year and quarter',
+                ], 422);
+            }
 
             $heightMeters = $request->height_cm / 100;
             $bmi = $request->bmi ?? round($request->weight_kg / ($heightMeters * $heightMeters), 2);
@@ -120,7 +134,7 @@ class StudentBmiController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to create bmi for student',
+                'message' => 'Failed to create BMI for student',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -148,7 +162,7 @@ class StudentBmiController extends Controller
                 'student_id' => ['required', 'exists:students,id'],
                 'academic_year_id' => ['required', 'exists:academic_years,id'],
                 'quarter_id' => ['required', 'exists:quarters,id'],
-                'recorded_at' => ['nullable', 'date',],
+                'recorded_at' => ['nullable', 'date'],
                 'height_cm' => ['required', 'numeric'],
                 'weight_kg' => ['required', 'numeric'],
                 'bmi' => ['nullable', 'numeric'],
@@ -190,7 +204,7 @@ class StudentBmiController extends Controller
             DB::rollBack();
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to update bmi record',
+                'message' => 'Failed to update BMI record',
                 'error' => $e->getMessage()
             ], 500);
         }
@@ -212,7 +226,7 @@ class StudentBmiController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to delete student bmi record',
+                'message' => 'Failed to delete student BMI record',
                 'error' => $e->getMessage()
             ], 500);
         }

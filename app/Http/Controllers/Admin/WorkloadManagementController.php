@@ -18,31 +18,39 @@ class WorkloadManagementController extends Controller
 {
     public function index(Request $request)
     {
-        $user = Auth::user();
-        $teacher = $user->teacher;
+        try {
+            $user = Auth::user();
+            $teacher = $user->teacher;
 
-        if (!$teacher) {
-            return response()->json(['error' => 'Teacher profile not found'], 404);
+            if (!$teacher) {
+                return response()->json(['error' => 'Teacher profile not found'], 404);
+            }
+
+            // Get current academic year and quarter
+            $currentAcademicYear = $this->getCurrentAcademicYear();
+            $currentQuarter = $this->getCurrentQuarter($currentAcademicYear->id);
+
+            $selectedAcademicYearId = $request->get('academic_year_id', $currentAcademicYear->id);
+            $selectedQuarterId = $request->get('quarter_id', $currentQuarter->id);
+
+            // Get workload data
+            $workloadData = $this->getWorkloadData($teacher->id, $selectedAcademicYearId, $selectedQuarterId);
+            $availableQuarters = $this->getAvailableQuarters($selectedAcademicYearId);
+
+            return response()->json([
+                'success' => true,
+                'data' => $workloadData,
+                'current_academic_year' => $currentAcademicYear,
+                'current_quarter' => $currentQuarter,
+                'available_quarters' => $availableQuarters
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch workload',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        // Get current academic year and quarter
-        $currentAcademicYear = $this->getCurrentAcademicYear();
-        $currentQuarter = $this->getCurrentQuarter($currentAcademicYear->id);
-
-        $selectedAcademicYearId = $request->get('academic_year_id', $currentAcademicYear->id);
-        $selectedQuarterId = $request->get('quarter_id', $currentQuarter->id);
-
-        // Get workload data
-        $workloadData = $this->getWorkloadData($teacher->id, $selectedAcademicYearId, $selectedQuarterId);
-        $availableQuarters = $this->getAvailableQuarters($selectedAcademicYearId);
-
-        return response()->json([
-            'success' => true,
-            'data' => $workloadData,
-            'current_academic_year' => $currentAcademicYear,
-            'current_quarter' => $currentQuarter,
-            'available_quarters' => $availableQuarters
-        ]);
     }
 
     private function getWorkloadData($teacherId, $academicYearId, $quarterId)
@@ -253,7 +261,14 @@ class WorkloadManagementController extends Controller
             ->whereDate('end_date', '>=', $today)
             ->first();
 
-        // If no current quarter found, fall back to the one marked as current
+        // If no current quarter found, try with is_current = 1
+        if (!$currentQuarter) {
+            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
+                ->where('is_current', 1)
+                ->first();
+        }
+
+        // If still no current quarter, try with boolean true
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
                 ->where('is_current', true)
