@@ -261,20 +261,6 @@ class WorkloadManagementController extends Controller
             ->whereDate('end_date', '>=', $today)
             ->first();
 
-        // If no current quarter found, try with is_current = 1
-        if (!$currentQuarter) {
-            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
-                ->where('is_current', 1)
-                ->first();
-        }
-
-        // If still no current quarter, try with boolean true
-        if (!$currentQuarter) {
-            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
-                ->where('is_current', true)
-                ->first();
-        }
-
         // Final fallback to first quarter by start date
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)

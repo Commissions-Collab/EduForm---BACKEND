@@ -705,7 +705,19 @@ class AttendanceController extends Controller
         $today = Carbon::today();
 
         if (!$academicYearId) {
+            // Try with boolean first
             $currentYear = AcademicYear::where('is_current', true)->first();
+            
+            // If not found, try with integer 1
+            if (!$currentYear) {
+                $currentYear = AcademicYear::where('is_current', 1)->first();
+            }
+            
+            // If still not found, get the most recent one
+            if (!$currentYear) {
+                $currentYear = AcademicYear::orderBy('id', 'desc')->first();
+            }
+            
             if (!$currentYear) {
                 return null;
             }
@@ -716,12 +728,6 @@ class AttendanceController extends Controller
             ->whereDate('start_date', '<=', $today)
             ->whereDate('end_date', '>=', $today)
             ->first();
-
-        if (!$currentQuarter) {
-            $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
-                ->where('is_current', true)
-                ->first();
-        }
 
         if (!$currentQuarter) {
             $currentQuarter = Quarter::where('academic_year_id', $academicYearId)
