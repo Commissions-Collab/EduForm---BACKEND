@@ -329,6 +329,17 @@ class TeacherController extends Controller
                     'room' => $scheduleData['room'] ?? null,
                     'is_active' => true,
                 ]);
+
+                // Auto-create TeacherSubject record if it doesn't exist
+                TeacherSubject::firstOrCreate(
+                    [
+                        'teacher_id' => $teacherId,
+                        'subject_id' => $scheduleData['subject_id'],
+                        'section_id' => $scheduleData['section_id'],
+                        'academic_year_id' => $academicYearId,
+                        'quarter_id' => $scheduleData['quarter_id'],
+                    ]
+                );
             }
 
             DB::commit();
@@ -452,18 +463,26 @@ class TeacherController extends Controller
             $createdAssignments = [];
 
             foreach ($validated['assignments'] as $data) {
-                // Check if the subject is already assigned to this teacher in this academic year
+                // Check if the exact combination already exists
                 $exists = \App\Models\TeacherSubject::where('teacher_id', $teacherId)
                     ->where('subject_id', $data['subject_id'])
+                    ->where('section_id', $data['section_id'] ?? null)
                     ->where('academic_year_id', $academicYearId)
+                    ->where('quarter_id', $data['quarter_id'] ?? null)
                     ->exists();
 
                 if ($exists) {
                     $subject = \App\Models\Subject::find($data['subject_id']);
+                    $section = isset($data['section_id']) ? \App\Models\Section::find($data['section_id']) : null;
+                    $quarter = isset($data['quarter_id']) ? \App\Models\Quarter::find($data['quarter_id']) : null;
+                    
                     DB::rollBack();
                     return response()->json([
                         'success' => false,
-                        'message' => "Subject '{$subject->name}' is already assigned to this teacher for the selected academic year.",
+                        'message' => "Subject '{$subject->name}'" . 
+                            ($section ? " in section '{$section->name}'" : '') .
+                            ($quarter ? " for {$quarter->name}" : '') .
+                            " is already assigned to this teacher.",
                     ], 409);
                 }
 
