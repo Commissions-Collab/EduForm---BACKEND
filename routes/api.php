@@ -29,6 +29,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SuperAdmin\QuarterManagement;
 use App\Http\Controllers\SuperAdmin\StudentApprovalController as SuperAdminStudentApprovalController;
 use App\Http\Controllers\SuperAdmin\SubjectController;
+use App\Http\Controllers\SuperAdmin\SuperAdminFormController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -210,6 +211,12 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::put('/textbooks/return/{id}', 'returnBook');
             });
 
+            Route::controller(SuperAdminFormController::class)->prefix('/forms')->group(function () {
+                Route::get('/sf5-sf6/filter-options', 'getFilterOptions');
+                Route::get('/sf5-sf6/statistics', 'getFormStatistics');
+                Route::post('/sf5-sf6/export-pdf', 'exportFormPDF');
+                Route::get('/sf5-sf6/preview/{type}/{sectionId}', 'previewForm');
+            });
 
 
 
