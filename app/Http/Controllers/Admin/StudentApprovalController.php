@@ -99,8 +99,10 @@ class StudentApprovalController extends Controller
             $studentRequest->status = 'approved';
             $studentRequest->save();
 
-            // Send approval email
+            // Send ONLY ONE approval email via Mail
             Mail::to($studentRequest->email)->send(new RegistrationApprovedMail($user));
+
+            // Store notification in database only (no email)
             $user->notify(new AccountApprovedNotification($user));
 
             DB::commit();

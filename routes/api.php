@@ -3,7 +3,7 @@
 use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\Admin\AttendancePDFController;
-use App\Http\Controllers\Admin\BookManagementController;
+use App\Http\Controllers\SuperAdmin\BookManagementController;
 use App\Http\Controllers\Admin\CertificateController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\ParentsConferenceController;
@@ -12,11 +12,8 @@ use App\Http\Controllers\Admin\StudentApprovalController;
 use App\Http\Controllers\Admin\StudentBmiController;
 use App\Http\Controllers\Admin\WorkloadManagementController;
 use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\SuperAdmin\ScheduleController;
 use App\Http\Controllers\SuperAdmin\SectionController;
 use App\Http\Controllers\SuperAdmin\TeacherController;
-use App\Http\Controllers\Admin\MonthlyAttendanceController;
-
 use App\Http\Controllers\Student\AchievementsController;
 use App\Http\Controllers\Student\DashboardController;
 use App\Http\Controllers\Student\GradeController;
@@ -27,9 +24,6 @@ use App\Http\Controllers\SuperAdmin\AcademicYearController;
 use App\Http\Controllers\SuperAdmin\EnrollmentController;
 use App\Http\Controllers\SuperAdmin\FilterController;
 use App\Http\Controllers\SuperAdmin\MonthlyAttendanceController as SuperAdminMonthlyAttendanceController;
-use App\Http\Controllers\SuperAdmin\StudentController;
-use App\Http\Controllers\SuperAdmin\StudentRecordController;
-use App\Http\Controllers\SuperAdmin\UserManagementController;
 use App\Http\Controllers\SuperAdmin\Year_levelsController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\SuperAdmin\QuarterManagement;
@@ -84,8 +78,6 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::get('/admin/dashboard', function () {
             return response()->json(['message' => 'Super Admin Dashboard']);
         });
-
-
 
         Route::prefix('admin')->group(function () {
 
@@ -192,6 +184,31 @@ Route::middleware('auth:sanctum')->group(function () {
             });
 
 
+            /**
+             * Controller for students access request
+             */
+            Route::controller(StudentApprovalController::class)->group(function () {
+                Route::get('/students/approved', 'index');
+                Route::get('/students/pending', 'pending');
+                Route::get('/students/rejected', 'rejected');
+                Route::put('/student-requests/{id}/approve', 'approvedStudents');
+                Route::put('/student-requests/{id}/reject', 'rejectApproval');
+            });
+
+            /**
+             * SF3 - Textbook Management
+             * Super Admin manages textbook inventory
+             */
+            Route::controller(BookManagementController::class)->group(function () {
+                Route::get('/textbooks', 'index');
+                Route::post('/textbooks', 'store');
+                Route::get('/textbooks/{id}', 'show');
+                Route::put('/textbooks/{id}', 'update');
+                Route::delete('/textbooks/{id}', 'destroy');
+                Route::get('/textbooks/filter-options', 'getFilterOptions');
+                Route::post('/textbooks/distribute', 'distributeBooks');
+                Route::put('/textbooks/return/{id}', 'returnBook');
+            });
 
 
 
@@ -218,16 +235,7 @@ Route::middleware('auth:sanctum')->group(function () {
         // Teacher only routes
         Route::get('/dashboard', [AdminDashboardController::class, 'dashboardData']);
 
-        /**
-         * Controller for students access request
-         */
-        Route::controller(StudentApprovalController::class)->group(function () {
-            Route::get('/students/approved', 'index');
-            Route::get('/students/pending', 'pending');
-            Route::get('/students/rejected', 'rejected');
-            Route::put('/student-requests/{id}/approve', 'approvedStudents');
-            Route::put('/student-requests/{id}/reject', 'rejectApproval');
-        });
+
 
         /**
          * Controller for attendance management

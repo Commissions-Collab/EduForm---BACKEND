@@ -24,24 +24,14 @@ class AccountApprovedNotification extends Notification implements ShouldQueue
 
     /**
      * Get the notification's delivery channels.
+     * Changed from ['mail', 'database'] to ['database'] only
+     * Email is handled by RegistrationApprovedMail instead
      *
      * @return array<int, string>
      */
     public function via(object $notifiable): array
     {
-        return ['mail', 'database'];
-    }
-
-    /**
-     * Get the mail representation of the notification.
-     */
-    public function toMail(object $notifiable): MailMessage
-    {
-        return (new MailMessage)
-                    ->subject('Your Account Has Been Approved')
-                    ->line('Your account has been approved. You can now log in to our application.')
-                    ->action('Login', url('/login'))
-                    ->line('Thank you for using our application!');
+        return ['database']; // Only database, no email
     }
 
     /**
@@ -54,6 +44,7 @@ class AccountApprovedNotification extends Notification implements ShouldQueue
         return [
             'message' => 'Your account has been approved.',
             'user_id' => $this->user->id,
+            'type' => 'approval',
         ];
     }
 }
