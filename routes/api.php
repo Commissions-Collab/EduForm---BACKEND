@@ -2,7 +2,7 @@
 
 use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
-use App\Http\Controllers\Admin\AttendancePDFController;
+use App\Http\Controllers\SuperAdmin\AttendancePDFController;
 use App\Http\Controllers\SuperAdmin\BookManagementController;
 use App\Http\Controllers\Admin\CertificateController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
@@ -30,6 +30,7 @@ use App\Http\Controllers\SuperAdmin\QuarterManagement;
 use App\Http\Controllers\SuperAdmin\StudentApprovalController as SuperAdminStudentApprovalController;
 use App\Http\Controllers\SuperAdmin\SubjectController;
 use App\Http\Controllers\SuperAdmin\SuperAdminFormController;
+use App\Http\Controllers\Api\PasswordResetController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -49,6 +50,16 @@ Route::get('/', function () {
  */
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+
+/*
+ | Password reset routes (public)
+ | - sendResetLink: accepts email and sends a reset link via the default broker
+ | - validateResetToken: checks whether a token is valid for a given email
+ | - resetPassword: performs the actual password reset
+ */
+Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink']);
+Route::post('/validate-reset-token', [PasswordResetController::class, 'validateToken']);
+Route::post('/reset-password', [PasswordResetController::class, 'reset']);
 
 /**
  * Protected routes
