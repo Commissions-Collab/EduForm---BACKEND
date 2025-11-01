@@ -17,157 +17,274 @@ class AchievementsController extends Controller
 {
     public function getCertificates(Request $request)
     {
-        $student = Auth::user();
-        $academicYear = $this->getCurrentAcademicYear();
+        try {
+            $user = Auth::user();
+            $student = $user->student;
 
-        if ($academicYear instanceof \Illuminate\Http\JsonResponse) {
-            return $academicYear;
-        }
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student profile not found'
+                ], 404);
+            }
 
-        $quarters = Quarter::where('academic_year_id', $academicYear->id)->get();
+            $academicYear = $this->getCurrentAcademicYear();
 
-        $honorRoll = collect();
-        $perfectAttendance = collect();
+            if (!$academicYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active academic year found'
+                ], 404);
+            }
 
-        foreach ($quarters as $quarter) {
-            $grades = Grade::where('student_id', $student->id)
-                ->where('quarter_id', $quarter->id)
+            $quarters = Quarter::where('academic_year_id', $academicYear->id)
+                ->orderBy('start_date')
                 ->get();
 
-            if ($grades->count()) {
-                $average = $grades->avg('grade');
+            if ($quarters->isEmpty()) {
+                return response()->json([
+                    'success' => true,
+                    'data' => [
+                        'certificate_count' => 0,
+                        'honor_roll_count' => [
+                            'with_honors' => 0,
+                            'with_high_honors' => 0,
+                            'with_highest_honors' => 0,
+                        ],
+                        'attendance_awards_count' => 0,
+                        'academic_awards' => [],
+                        'attendance_awards' => [],
+                    ]
+                ]);
+            }
 
-                if ($average >= 90) {
-                    $honorType = match (true) {
-                        $average >= 98 => 'With Highest Honors',
-                        $average >= 95 => 'With High Honors',
-                        default        => 'With Honors',
-                    };
+            $honorRoll = collect();
+            $perfectAttendance = collect();
 
-                    $honorRoll->push([
-                        'type' => 'honor_roll',
-                        'honor_type' => $honorType,
+            foreach ($quarters as $quarter) {
+                // Check honor roll eligibility
+                $grades = Grade::where('student_id', $student->id)
+                    ->where('quarter_id', $quarter->id)
+                    ->where('academic_year_id', $academicYear->id)
+                    ->get();
+
+                if ($grades->count() > 0) {
+                    $average = $grades->avg('grade');
+
+                    if ($average >= 90) {
+                        $honorType = match (true) {
+                            $average >= 98 => 'With Highest Honors',
+                            $average >= 95 => 'With High Honors',
+                            default => 'With Honors',
+                        };
+
+                        $honorRoll->push([
+                            'type' => 'honor_roll',
+                            'honor_type' => $honorType,
+                            'issued_date' => Carbon::parse($quarter->end_date)->format('F d, Y'),
+                            'description' => "{$honorType} for the {$quarter->name}",
+                            'quarter_id' => $quarter->id,
+                            'quarter' => $quarter->name,
+                            'category' => 'Academic',
+                            'average' => round($average, 2),
+                        ]);
+                    }
+                }
+
+                // Check perfect attendance eligibility
+                $attendances = Attendance::where('student_id', $student->id)
+                    ->whereBetween('attendance_date', [$quarter->start_date, $quarter->end_date])
+                    ->where('academic_year_id', $academicYear->id)
+                    ->get();
+
+                $totalDays = $attendances->count();
+                $presentDays = $attendances->where('status', 'present')->count();
+
+                if ($totalDays > 0 && $totalDays === $presentDays) {
+                    $perfectAttendance->push([
+                        'type' => 'perfect_attendance',
                         'issued_date' => Carbon::parse($quarter->end_date)->format('F d, Y'),
-                        'description' => "{$honorType} for the {$quarter->name}",
+                        'description' => "For 100% attendance during the {$quarter->name}",
                         'quarter_id' => $quarter->id,
                         'quarter' => $quarter->name,
-                        'category' => 'Academic',
-                        'average' => round($average, 2),
+                        'category' => 'Attendance',
                     ]);
                 }
             }
 
-            $attendances = Attendance::where('student_id', $student->id)
-                ->whereBetween('attendance_date', [$quarter->start_date, $quarter->end_date])
-                ->get();
+            $honorCounts = [
+                'with_honors' => $honorRoll->where('honor_type', 'With Honors')->count(),
+                'with_high_honors' => $honorRoll->where('honor_type', 'With High Honors')->count(),
+                'with_highest_honors' => $honorRoll->where('honor_type', 'With Highest Honors')->count(),
+            ];
 
-            $totalDays = $attendances->count();
-            $presentDays = $attendances->where('status', 'present')->count();
-
-            if ($totalDays > 0 && $totalDays == $presentDays) {
-                $perfectAttendance->push([
-                    'type' => 'perfect_attendance',
-                    'issued_date' => Carbon::parse($quarter->end_date)->format('F d, Y'),
-                    'description' => "For 100% attendance during the {$quarter->name}",
-                    'quarter_id' => $quarter->id,
-                    'quarter' => $quarter->name,
-                    'category' => 'Attendance',
-                ]);
-            }
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'certificate_count' => $honorRoll->count() + $perfectAttendance->count(),
+                    'honor_roll_count' => $honorCounts,
+                    'attendance_awards_count' => $perfectAttendance->count(),
+                    'academic_awards' => $honorRoll->values(),
+                    'attendance_awards' => $perfectAttendance->values(),
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch certificates',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        $honorCounts = [
-            'with_honors' => $honorRoll->where('honor_type', 'With Honors')->count(),
-            'with_high_honors' => $honorRoll->where('honor_type', 'With High Honors')->count(),
-            'with_highest_honors' => $honorRoll->where('honor_type', 'With Highest Honors')->count(),
-        ];
-
-        return response()->json([
-            'certificate_count' => $honorRoll->count() + $perfectAttendance->count(),
-            'honor_roll_count' => $honorCounts,
-            'attendance_awards_count' => $perfectAttendance->count(),
-            'academic_awards' => $honorRoll->values(),
-            'attendance_awards' => $perfectAttendance->values(),
-        ]);
     }
 
     public function downloadCertificate(Request $request)
     {
-        $student = Auth::user();
-        $currentYear = $this->getCurrentAcademicYear();
+        try {
+            $user = Auth::user();
+            $student = $user->student;
 
-        if ($currentYear instanceof \Illuminate\Http\JsonResponse) {
-            return $currentYear;
-        }
-
-        $type = $request->input('type');
-        $quarterId = $request->input('quarter_id');
-
-        $quarter = Quarter::findOrFail($quarterId);
-        $studentData = Student::with(['user'])->findOrFail($student->id);
-
-        if ($type === 'honor_roll') {
-            $grades = Grade::where('student_id', $student->id)
-                ->where('quarter_id', $quarterId)
-                ->get();
-
-            $average = $grades->avg('grade');
-
-            if ($average < 90) {
-                return response()->json(['message' => 'Not qualified for honor roll'], 403);
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student profile not found'
+                ], 404);
             }
 
-            $honorType = match (true) {
-                $average >= 98 => 'With Highest Honors',
-                $average >= 95 => 'With High Honors',
-                default        => 'With Honors',
-            };
+            $type = $request->input('type');
+            $quarterId = $request->input('quarter_id');
 
-            $data = [
-                'honor_type' => $honorType,
-                'grade_average' => $average,
-                'quarter' => $quarter->name,
-                'academic_year' => $currentYear->name,
-            ];
-
-            $pdf = Pdf::loadView('certificates.honor_roll', [
-                'student' => $studentData,
-                'data' => $data
-            ]);
-        } elseif ($type === 'perfect_attendance') {
-            $attendances = Attendance::where('student_id', $student->id)
-                ->whereBetween('attendance_date', [$quarter->start_date, $quarter->end_date])
-                ->get();
-
-            $total = $attendances->count();
-            $present = $attendances->where('status', 'present')->count();
-
-            if ($total === 0 || $total !== $present) {
-                return response()->json(['message' => 'Not qualified for perfect attendance'], 403);
+            if (!$type || !$quarterId) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Type and quarter_id are required'
+                ], 400);
             }
 
-            $data = [
-                'quarters' => $quarter->name,
-                'academic_year' => $currentYear->name,
-            ];
+            $currentYear = $this->getCurrentAcademicYear();
 
-            $pdf = Pdf::loadView('certificates.perfect_attendance', [
-                'student' => $studentData,
-                'data' => $data
-            ]);
-        } else {
-            return response()->json(['message' => 'Invalid certificate type'], 422);
+            if (!$currentYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No active academic year found'
+                ], 404);
+            }
+
+            $quarter = Quarter::where('id', $quarterId)
+                ->where('academic_year_id', $currentYear->id)
+                ->first();
+
+            if (!$quarter) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Quarter not found'
+                ], 404);
+            }
+
+            $studentData = Student::with(['user'])->findOrFail($student->id);
+
+            if ($type === 'honor_roll') {
+                // Verify student qualifies for honor roll
+                $grades = Grade::where('student_id', $student->id)
+                    ->where('quarter_id', $quarterId)
+                    ->where('academic_year_id', $currentYear->id)
+                    ->get();
+
+                if ($grades->count() === 0) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'No grades found for this student in the selected quarter'
+                    ], 404);
+                }
+
+                $average = $grades->avg('grade');
+
+                if ($average < 90) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Not qualified for honor roll'
+                    ], 403);
+                }
+
+                $honorType = match (true) {
+                    $average >= 98 => 'With Highest Honors',
+                    $average >= 95 => 'With High Honors',
+                    default => 'With Honors',
+                };
+
+                $data = [
+                    'honor_type' => $honorType,
+                    'grade_average' => round($average, 2),
+                    'quarter' => $quarter->name,
+                    'academic_year' => $currentYear->name,
+                ];
+
+                $pdf = Pdf::loadView('certificates.honor_roll', [
+                    'student' => $studentData,
+                    'data' => $data
+                ]);
+            } elseif ($type === 'perfect_attendance') {
+                // Verify student has perfect attendance
+                $attendances = Attendance::where('student_id', $student->id)
+                    ->whereBetween('attendance_date', [$quarter->start_date, $quarter->end_date])
+                    ->where('academic_year_id', $currentYear->id)
+                    ->get();
+
+                $totalDays = $attendances->count();
+                $presentDays = $attendances->where('status', 'present')->count();
+
+                if ($totalDays === 0 || $totalDays !== $presentDays) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Not qualified for perfect attendance'
+                    ], 403);
+                }
+
+                $data = [
+                    'quarters' => $quarter->name,
+                    'academic_year' => $currentYear->name,
+                ];
+
+                $pdf = Pdf::loadView('certificates.perfect_attendance', [
+                    'student' => $studentData,
+                    'data' => $data
+                ]);
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid certificate type'
+                ], 422);
+            }
+
+            $pdf->setPaper('A4', 'landscape');
+            return $pdf->download("certificate-{$type}-{$quarter->name}.pdf");
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to download certificate',
+                'error' => $e->getMessage()
+            ], 500);
         }
-
-        return $pdf->download("certificate-{$type}-{$quarter->name}.pdf");
     }
 
     private function getCurrentAcademicYear()
     {
-        $year = AcademicYear::where('is_current', 1)->first();
-        if (!$year) {
-            return response()->json(['message' => 'Active academic year not found.'], 404);
+        try {
+            // Try with boolean first
+            $academicYear = AcademicYear::where('is_current', true)->first();
+
+            // If not found, try with integer 1
+            if (!$academicYear) {
+                $academicYear = AcademicYear::where('is_current', 1)->first();
+            }
+
+            // If still not found, get the most recent one
+            if (!$academicYear) {
+                $academicYear = AcademicYear::orderBy('id', 'desc')->first();
+            }
+
+            return $academicYear;
+        } catch (\Exception $e) {
+            throw $e;
         }
-        return $year;
     }
 }
