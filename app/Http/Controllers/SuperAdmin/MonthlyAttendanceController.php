@@ -8,6 +8,7 @@ use App\Models\Attendance;
 use App\Models\Schedule;
 use App\Models\Section;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Http\Request;
 
 class MonthlyAttendanceController extends Controller
@@ -44,8 +45,13 @@ class MonthlyAttendanceController extends Controller
             // Generate calendar days for the month
             $calendarDays = $this->generateCalendarDays($startDate, $endDate);
 
+            // Allow caller to choose counting mode:
+            // - present_mode=strict (default): present only if attended all scheduled subjects
+            // - present_mode=lenient: present if attended at least one scheduled subject (treat half-day as present)
+            $presentMode = $request->get('present_mode', 'strict');
+
             // Process daily attendance summary for each student
-            $studentSummaries = $this->processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays);
+            $studentSummaries = $this->processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays, $presentMode);
 
             return response()->json([
                 'success' => true,
@@ -78,7 +84,7 @@ class MonthlyAttendanceController extends Controller
                 ]
             ]);
         } catch (\Exception $e) {
-            \Log::error('SuperAdminMonthlyAttendanceController error', [
+            Log::error('SuperAdminMonthlyAttendanceController error', [
                 'message' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
@@ -112,16 +118,27 @@ class MonthlyAttendanceController extends Controller
 
     private function getMonthlyAttendanceData($sectionId, $academicYearId, $startDate, $endDate)
     {
-        return Attendance::with(['student', 'schedule.subject'])
+        // Normalize the date range to include the full days and group results by
+        // student id and the date portion (Y-m-d) of attendance_date. This avoids
+        // mismatches when attendance_date includes time components.
+        $attendances = Attendance::with(['student', 'schedule.subject'])
             ->whereHas('student.enrollments', function ($query) use ($sectionId, $academicYearId) {
                 $query->where('section_id', $sectionId)
                     ->where('enrollment_status', 'enrolled')
                     ->where('academic_year_id', $academicYearId);
             })
             ->where('academic_year_id', $academicYearId)
-            ->whereBetween('attendance_date', [$startDate->format('Y-m-d'), $endDate->format('Y-m-d')])
-            ->get()
-            ->groupBy(['student_id', 'attendance_date']);
+            ->whereBetween('attendance_date', [$startDate->copy()->startOfDay(), $endDate->copy()->endOfDay()])
+            ->get();
+
+        // Group first by student_id, then by the date string (Y-m-d) for the attendance_date
+        return $attendances->groupBy(function ($item) {
+            return $item->student_id;
+        })->map(function ($group) {
+            return $group->groupBy(function ($att) {
+                return Carbon::parse($att->attendance_date)->format('Y-m-d');
+            });
+        });
     }
 
     private function generateCalendarDays($startDate, $endDate): array
@@ -143,7 +160,7 @@ class MonthlyAttendanceController extends Controller
         return $days;
     }
 
-    private function processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays): array
+    private function processStudentDailyAttendance($students, $schedules, $attendanceData, $calendarDays, $presentMode = 'strict'): array
     {
         $studentSummaries = [];
 
@@ -163,7 +180,8 @@ class MonthlyAttendanceController extends Controller
                     $dateKey,
                     $schedules,
                     $attendanceData,
-                    $day['is_weekend'] || $day['is_holiday']
+                    $day['is_weekend'] || $day['is_holiday'],
+                    $presentMode
                 );
 
                 $dailyAttendance[] = [
@@ -174,7 +192,26 @@ class MonthlyAttendanceController extends Controller
                     'is_holiday' => $day['is_holiday']
                 ];
 
-                $monthlySummary[$dayStatus . '_days']++;
+                // Map day status to the correct monthly summary key.
+                // Avoid using string concatenation which produced keys like
+                // "half_day_days" instead of the expected "half_days".
+                switch ($dayStatus) {
+                    case 'present':
+                        $monthlySummary['present_days']++;
+                        break;
+                    case 'half_day':
+                        $monthlySummary['half_days']++;
+                        break;
+                    case 'absent':
+                        $monthlySummary['absent_days']++;
+                        break;
+                    case 'no_class':
+                        $monthlySummary['no_class_days']++;
+                        break;
+                    default:
+                        // unknown status - ignore
+                        break;
+                }
             }
 
             $studentSummaries[] = [
@@ -196,21 +233,60 @@ class MonthlyAttendanceController extends Controller
         return $studentSummaries;
     }
 
-    private function calculateDayStatus($studentId, $date, $schedules, $attendanceData, $isNonSchoolDay): string
+    private function calculateDayStatus($studentId, $date, $schedules, $attendanceData, $isNonSchoolDay, $presentMode = 'strict'): string
     {
         if ($isNonSchoolDay) {
             return 'no_class';
         }
 
-        $dayAttendance = $attendanceData[$studentId][$date] ?? collect();
-
-        if ($dayAttendance->isEmpty()) {
-            return $schedules->isNotEmpty() ? 'absent' : 'no_class';
+        // attendanceData is a collection grouped by student_id -> Y-m-d -> [attendances]
+        $studentAttendanceGroup = null;
+        if ($attendanceData instanceof \Illuminate\Support\Collection) {
+            $studentAttendanceGroup = $attendanceData->get($studentId);
+        } elseif (is_array($attendanceData) && array_key_exists($studentId, $attendanceData)) {
+            $studentAttendanceGroup = $attendanceData[$studentId];
         }
 
-        $totalSubjects = $schedules->count();
-        $attendedSubjects = $dayAttendance->whereIn('status', ['present', 'late'])->count();
-        $recordedSubjects = $dayAttendance->count();
+        $dayAttendance = collect();
+        if ($studentAttendanceGroup instanceof \Illuminate\Support\Collection) {
+            $dayAttendance = $studentAttendanceGroup->get($date, collect());
+        } elseif (is_array($studentAttendanceGroup) && array_key_exists($date, $studentAttendanceGroup)) {
+            $dayAttendance = collect($studentAttendanceGroup[$date]);
+        }
+
+        if ($dayAttendance->isEmpty()) {
+            // If there are no attendance records for the day, we still need to
+            // determine whether there were scheduled classes on that particular
+            // weekday. If there are schedules for that date, the student is
+            // considered absent; otherwise it's a no-class day.
+            $weekdayName = Carbon::parse($date)->format('l'); // e.g. "Monday"
+            $schedulesForDate = $schedules->filter(function ($s) use ($weekdayName) {
+                return isset($s->day_of_week) && $s->day_of_week == $weekdayName;
+            });
+
+            return $schedulesForDate->isNotEmpty() ? 'absent' : 'no_class';
+        }
+
+        // Count only schedules that occur on this specific weekday (e.g. Monday)
+        $weekdayName = Carbon::parse($date)->format('l');
+        $schedulesForDate = $schedules->filter(function ($s) use ($weekdayName) {
+            return isset($s->day_of_week) && $s->day_of_week == $weekdayName;
+        });
+
+        $totalSubjects = $schedulesForDate->count();
+
+        // Use unique schedule_id counts to avoid double-counting multiple records
+        // for the same schedule (if any).
+        $attendedSubjects = $dayAttendance->whereIn('status', ['present', 'late'])
+            ->pluck('schedule_id')
+            ->unique()
+            ->count();
+
+        $recordedSubjects = $dayAttendance->pluck('schedule_id')->unique()->count();
+
+        if ($totalSubjects === 0) {
+            return 'no_class';
+        }
 
         if ($attendedSubjects == $totalSubjects && $recordedSubjects == $totalSubjects) {
             return 'present';
