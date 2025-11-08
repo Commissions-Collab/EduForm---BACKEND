@@ -32,7 +32,7 @@ class CertificateController extends Controller
         ]);
     }
 
-    public function preview($type, $studentId, $quarterId = null)
+    public function preview(Request $request, $type, $studentId, $quarterId = null)
     {
         // Check if quarter is complete
         if (!$this->isQuarterComplete($quarterId)) {
@@ -122,7 +122,7 @@ class CertificateController extends Controller
         return $pdf->stream("certificate-{$type}.pdf");
     }
 
-    public function download($type, $studentId, $quarterId = null)
+    public function download(Request $request, $type, $studentId, $quarterId = null)
     {
         // Check if quarter is complete
         if (!$this->isQuarterComplete($quarterId)) {
@@ -230,7 +230,7 @@ class CertificateController extends Controller
         return response()->json($filtered);
     }
 
-    public function printAll(Request $request)
+    public function downloadAll(Request $request)
     {
         $year = $request->input('academic_year_id');
         $section = $request->input('section_id');
@@ -239,7 +239,7 @@ class CertificateController extends Controller
 
         // Check if quarter is complete
         if (!$this->isQuarterComplete($quarter)) {
-            return response()->json(['error' => 'Cannot print certificates. The selected quarter has not ended yet.'], 403);
+            return response()->json(['error' => 'Cannot download certificates. The selected quarter has not ended yet.'], 403);
         }
 
         $students = Student::whereHas('enrollments', function ($q) use ($year, $section) {
@@ -360,7 +360,7 @@ class CertificateController extends Controller
             if ($isPerfect) {
                 $quarters = $attendances->pluck('quarter_id')->unique();
                 $attendanceComplete = $this->isAttendanceComplete($student->id, $quarterId);
-                
+
                 $perfect[] = [
                     'id' => $student->id,
                     'student_name' => $student->fullName(),
@@ -402,7 +402,7 @@ class CertificateController extends Controller
 
             if ($honor) {
                 $gradesComplete = $this->isGradesComplete($student->id, $quarterId);
-                
+
                 $honors[] = [
                     'id' => $student->id,
                     'student_name' => $student->fullName(),
@@ -451,10 +451,10 @@ class CertificateController extends Controller
         // Check if quarter has ended and academic year has ended
         $now = Carbon::now();
         $quarterEnded = $now->isAfter($quarter->end_date);
-        
+
         // Get academic year end date
         $academicYearEnded = $now->isAfter($quarter->academicYear->end_date ?? $quarter->end_date);
-        
+
         // Both quarter and academic year should have ended for complete data
         if (!$quarterEnded || !$academicYearEnded) {
             return false;
@@ -488,10 +488,10 @@ class CertificateController extends Controller
         // Check if quarter has ended and academic year has ended
         $now = Carbon::now();
         $quarterEnded = $now->isAfter($quarter->end_date);
-        
+
         // Get academic year end date
         $academicYearEnded = $now->isAfter($quarter->academicYear->end_date ?? $quarter->end_date);
-        
+
         // Both quarter and academic year should have ended for complete data
         if (!$quarterEnded || !$academicYearEnded) {
             return false;
@@ -509,7 +509,7 @@ class CertificateController extends Controller
         // Get expected subjects for the student's grade level
         // Assuming you have a relationship between year_levels and subjects
         // You might need to adjust this based on your actual relationship structure
-        $expectedSubjectsCount = \App\Models\Subject::whereHas('yearLevels', function($query) use ($enrollment) {
+        $expectedSubjectsCount = \App\Models\Subject::whereHas('yearLevels', function ($query) use ($enrollment) {
             $query->where('year_level_id', $enrollment->grade_level);
         })->where('is_active', true)->count();
 

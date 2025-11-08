@@ -310,7 +310,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/', 'index');
             Route::get('/preview/{type}/{studentId}/{quarterId?}', 'preview');
             Route::get('/download/{type}/{studentId}/{quarterId?}', 'download');
-            Route::get('/print-all', 'printAll');
+            Route::post('/download-all', 'downloadAll');
             Route::get('/honor-roll/filter', 'filterHonorRoll');
         });
 
