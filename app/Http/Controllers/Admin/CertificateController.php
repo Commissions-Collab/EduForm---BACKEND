@@ -11,29 +11,48 @@ use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Log;
 
 class CertificateController extends Controller
 {
     public function index(Request $request)
     {
         try {
+            Log::info('Certificate index called', [
+                'params' => $request->all(),
+                'user' => $request->user()?->id,
+            ]);
+
             $year = $request->input('academic_year_id');
             $section = $request->input('section_id');
             $quarter = $request->input('quarter_id');
 
             // Validate required parameters
             if (!$year || !$section || !$quarter) {
+                Log::warning('Certificate index: Missing required parameters', [
+                    'year' => $year,
+                    'section' => $section,
+                    'quarter' => $quarter,
+                ]);
                 return response()->json([
                     'error' => 'Missing required parameters: academic_year_id, section_id, and quarter_id are required'
                 ], 400);
             }
 
+            Log::info('Fetching perfect attendance data');
             $perfectAttendance = $this->getPerfectAttendance($year, $section, $quarter);
+            
+            Log::info('Fetching honor roll data');
             $honorRoll = $this->getHonorRoll($year, $section, $quarter);
 
             // Check if quarter is complete
+            Log::info('Checking if quarter is complete');
             $quarterComplete = $this->isQuarterComplete($quarter);
+
+            Log::info('Certificate index successful', [
+                'perfect_attendance_count' => count($perfectAttendance),
+                'honor_roll_count' => count($honorRoll),
+                'quarter_complete' => $quarterComplete,
+            ]);
 
             return response()->json([
                 'perfect_attendance' => $perfectAttendance,
@@ -43,12 +62,18 @@ class CertificateController extends Controller
         } catch (\Exception $e) {
             Log::error('Certificate index error: ' . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
-                'request' => $request->all()
+                'request' => $request->all(),
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
             ]);
             
             return response()->json([
                 'error' => 'An error occurred while fetching certificate data',
-                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error',
+                'debug_info' => config('app.debug') ? [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                ] : null,
             ], 500);
         }
     }
