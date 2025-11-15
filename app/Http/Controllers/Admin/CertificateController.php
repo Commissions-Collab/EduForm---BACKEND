@@ -9,27 +9,47 @@ use App\Models\Quarter;
 use App\Models\Student;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 use Carbon\Carbon;
 
 class CertificateController extends Controller
 {
     public function index(Request $request)
     {
-        $year = $request->input('academic_year_id');
-        $section = $request->input('section_id');
-        $quarter = $request->input('quarter_id');
+        try {
+            $year = $request->input('academic_year_id');
+            $section = $request->input('section_id');
+            $quarter = $request->input('quarter_id');
 
-        $perfectAttendance = $this->getPerfectAttendance($year, $section, $quarter);
-        $honorRoll = $this->getHonorRoll($year, $section, $quarter);
+            // Validate required parameters
+            if (!$year || !$section || !$quarter) {
+                return response()->json([
+                    'error' => 'Missing required parameters: academic_year_id, section_id, and quarter_id are required'
+                ], 400);
+            }
 
-        // Check if quarter is complete
-        $quarterComplete = $this->isQuarterComplete($quarter);
+            $perfectAttendance = $this->getPerfectAttendance($year, $section, $quarter);
+            $honorRoll = $this->getHonorRoll($year, $section, $quarter);
 
-        return response()->json([
-            'perfect_attendance' => $perfectAttendance,
-            'honor_roll' => $honorRoll,
-            'quarter_complete' => $quarterComplete,
-        ]);
+            // Check if quarter is complete
+            $quarterComplete = $this->isQuarterComplete($quarter);
+
+            return response()->json([
+                'perfect_attendance' => $perfectAttendance,
+                'honor_roll' => $honorRoll,
+                'quarter_complete' => $quarterComplete,
+            ]);
+        } catch (\Exception $e) {
+            Log::error('Certificate index error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString(),
+                'request' => $request->all()
+            ]);
+            
+            return response()->json([
+                'error' => 'An error occurred while fetching certificate data',
+                'message' => config('app.debug') ? $e->getMessage() : 'Internal server error'
+            ], 500);
+        }
     }
 
     public function preview(Request $request, $type, $studentId, $quarterId = null)
@@ -332,10 +352,14 @@ class CertificateController extends Controller
     {
         $students = Student::whereHas('enrollments', function ($query) use ($yearId, $sectionId) {
             $query->where('academic_year_id', $yearId)
-                ->where('section_id', $sectionId);
+                ->where('section_id', $sectionId)
+                ->where('enrollment_status', 'enrolled');
         })->with([
-            'grades' => function ($query) use ($quarterId) {
-                $query->when($quarterId, fn($q) => $q->where('quarter_id', $quarterId));
+            'attendances' => function ($query) use ($yearId, $quarterId) {
+                $query->where('academic_year_id', $yearId);
+                if ($quarterId) {
+                    $query->where('quarter_id', $quarterId);
+                }
             }
         ])->get();
 
@@ -345,14 +369,9 @@ class CertificateController extends Controller
         foreach ($students as $student) {
             $attendances = $student->attendances;
 
-            if ($quarterId) {
-                // Only attendance in this quarter
-                $attendances = $attendances->where('quarter_id', $quarterId);
-            }
-
             if ($attendances->count() === 0) continue;
 
-            // Check if all are present
+            // Check if all are present (including excused and late as acceptable)
             $isPerfect = $attendances->every(function ($record) {
                 return in_array($record->status, ['present', 'excused', 'late']);
             });
@@ -377,10 +396,14 @@ class CertificateController extends Controller
     {
         $students = Student::whereHas('enrollments', function ($query) use ($yearId, $sectionId) {
             $query->where('academic_year_id', $yearId)
-                ->where('section_id', $sectionId);
+                ->where('section_id', $sectionId)
+                ->where('enrollment_status', 'enrolled');
         })->with([
-            'grades' => function ($query) use ($quarterId) {
-                $query->when($quarterId, fn($q) => $q->where('quarter_id', $quarterId));
+            'grades' => function ($query) use ($yearId, $quarterId) {
+                $query->where('academic_year_id', $yearId);
+                if ($quarterId) {
+                    $query->where('quarter_id', $quarterId);
+                }
             }
         ])->get();
 
@@ -452,8 +475,10 @@ class CertificateController extends Controller
         $now = Carbon::now();
         $quarterEnded = $now->isAfter($quarter->end_date);
 
-        // Get academic year end date
-        $academicYearEnded = $now->isAfter($quarter->academicYear->end_date ?? $quarter->end_date);
+        // Get academic year end date - handle case where academicYear relationship might not be loaded
+        $academicYear = $quarter->academicYear;
+        $academicYearEndDate = $academicYear ? $academicYear->end_date : $quarter->end_date;
+        $academicYearEnded = $now->isAfter($academicYearEndDate);
 
         // Both quarter and academic year should have ended for complete data
         if (!$quarterEnded || !$academicYearEnded) {
@@ -489,8 +514,10 @@ class CertificateController extends Controller
         $now = Carbon::now();
         $quarterEnded = $now->isAfter($quarter->end_date);
 
-        // Get academic year end date
-        $academicYearEnded = $now->isAfter($quarter->academicYear->end_date ?? $quarter->end_date);
+        // Get academic year end date - handle case where academicYear relationship might not be loaded
+        $academicYear = $quarter->academicYear;
+        $academicYearEndDate = $academicYear ? $academicYear->end_date : $quarter->end_date;
+        $academicYearEnded = $now->isAfter($academicYearEndDate);
 
         // Both quarter and academic year should have ended for complete data
         if (!$quarterEnded || !$academicYearEnded) {
@@ -507,11 +534,12 @@ class CertificateController extends Controller
         }
 
         // Get expected subjects for the student's grade level
-        // Assuming you have a relationship between year_levels and subjects
-        // You might need to adjust this based on your actual relationship structure
-        $expectedSubjectsCount = \App\Models\Subject::whereHas('yearLevels', function ($query) use ($enrollment) {
-            $query->where('year_level_id', $enrollment->grade_level);
-        })->where('is_active', true)->count();
+        // Check if there's a year_level_subjects pivot table or direct relationship
+        $expectedSubjectsCount = \App\Models\YearLevelSubject::where('year_level_id', $enrollment->grade_level)
+            ->whereHas('subject', function ($query) {
+                $query->where('is_active', true);
+            })
+            ->count();
 
         // If no relationship exists, you might have a direct foreign key or pivot table
         // Alternative approach if subjects are directly related to year_levels:
