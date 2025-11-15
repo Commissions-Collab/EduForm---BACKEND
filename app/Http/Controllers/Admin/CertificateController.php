@@ -10,6 +10,7 @@ use App\Models\Student;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CertificateController extends Controller
 {
@@ -34,10 +35,8 @@ class CertificateController extends Controller
 
     public function preview(Request $request, $type, $studentId, $quarterId = null)
     {
-        // Check if quarter is complete
-        if (!$this->isQuarterComplete($quarterId)) {
-            abort(403, 'Cannot preview certificate. The selected quarter has not ended yet.');
-        }
+        // NOTE: preview generation no longer requires the quarter to be marked complete
+        // We instead validate completeness per-student using isAttendanceComplete / isGradesComplete
 
         $student = Student::with('section.yearLevel', 'section.academicYear')->findOrFail($studentId);
 
@@ -80,9 +79,9 @@ class CertificateController extends Controller
         }
 
         if ($type === 'honor_roll') {
-            // Check if grades data is complete for the quarter
+            // Check if grades data is complete for the quarter (per-student)
             if (!$this->isGradesComplete($studentId, $quarterId)) {
-                abort(403, 'Cannot preview certificate. Grades data is incomplete for this quarter.');
+                abort(403, 'Cannot preview certificate. Grades data is incomplete for this student for the selected quarter.');
             }
 
             // Get grades for the student
@@ -124,10 +123,8 @@ class CertificateController extends Controller
 
     public function download(Request $request, $type, $studentId, $quarterId = null)
     {
-        // Check if quarter is complete
-        if (!$this->isQuarterComplete($quarterId)) {
-            abort(403, 'Cannot download certificate. The selected quarter has not ended yet.');
-        }
+        // NOTE: downloading individual certificates no longer requires quarter completion
+        // We validate completeness per-student using isAttendanceComplete / isGradesComplete
 
         $student = Student::with('section.yearLevel', 'section.academicYear')->findOrFail($studentId);
 
@@ -236,11 +233,8 @@ class CertificateController extends Controller
         $section = $request->input('section_id');
         $quarter = $request->input('quarter_id');
         $type = $request->input('type'); // perfect_attendance or honor_roll
-
-        // Check if quarter is complete
-        if (!$this->isQuarterComplete($quarter)) {
-            return response()->json(['error' => 'Cannot download certificates. The selected quarter has not ended yet.'], 403);
-        }
+        // NOTE: allow batch downloads as long as per-student data is complete. We
+        // validate completeness inside the loop using isAttendanceComplete/isGradesComplete.
 
         $students = Student::whereHas('enrollments', function ($q) use ($year, $section) {
             $q->where('academic_year_id', $year)
@@ -361,11 +355,12 @@ class CertificateController extends Controller
                 $quarters = $attendances->pluck('quarter_id')->unique();
                 $attendanceComplete = $this->isAttendanceComplete($student->id, $quarterId);
 
+                // Allow generation if the student's attendance data is complete for the quarter
                 $perfect[] = [
                     'id' => $student->id,
                     'student_name' => $student->fullName(),
                     'quarters' => $quarters->map(fn($id) => Quarter::find($id)?->name ?? 'Unknown')->join(', '),
-                    'can_generate' => $quarterComplete && $attendanceComplete,
+                    'can_generate' => $attendanceComplete,
                 ];
             }
         }
@@ -403,13 +398,14 @@ class CertificateController extends Controller
             if ($honor) {
                 $gradesComplete = $this->isGradesComplete($student->id, $quarterId);
 
+                // Allow honor certificate generation when grades for the student are complete
                 $honors[] = [
                     'id' => $student->id,
                     'student_name' => $student->fullName(),
                     'grade_average' => round($average, 2),
                     'honor_type' => $honor,
                     'quarter' => $quarterName,
-                    'can_generate' => $quarterComplete && $gradesComplete,
+                    'can_generate' => $gradesComplete,
                 ];
             }
         }
@@ -448,17 +444,12 @@ class CertificateController extends Controller
             return false;
         }
 
-        // Check if quarter has ended and academic year has ended
-        $now = Carbon::now();
-        $quarterEnded = $now->isAfter($quarter->end_date);
-
-        // Get academic year end date
-        $academicYearEnded = $now->isAfter($quarter->academicYear->end_date ?? $quarter->end_date);
-
-        // Both quarter and academic year should have ended for complete data
-        if (!$quarterEnded || !$academicYearEnded) {
-            return false;
-        }
+        // NOTE: We no longer require the quarter or academic year to have ended
+        // to consider grades "complete" for an individual student. Certificate
+        // generation will instead rely on whether the student has grades for
+        // all expected subjects. This allows admins/teachers to generate
+        // certificates once data entry is finished, even before the quarter
+        // formally ends.
 
         // Check if student has attendance records for the quarter
         $attendanceCount = Attendance::where('student_id', $studentId)
@@ -485,17 +476,13 @@ class CertificateController extends Controller
             return false;
         }
 
-        // Check if quarter has ended and academic year has ended
-        $now = Carbon::now();
-        $quarterEnded = $now->isAfter($quarter->end_date);
-
-        // Get academic year end date
-        $academicYearEnded = $now->isAfter($quarter->academicYear->end_date ?? $quarter->end_date);
-
-        // Both quarter and academic year should have ended for complete data
-        if (!$quarterEnded || !$academicYearEnded) {
-            return false;
-        }
+        // NOTE: We intentionally do NOT require the quarter or academic year
+        // to be finished to consider grades "complete" for a particular student.
+        // Certificate generation is allowed once the student's grades for all
+        // expected subjects are present for the selected quarter. This matches
+        // the student-facing eligibility calculation which shows "You are
+        // eligible for..." once averages meet thresholds even before the
+        // quarter formally ends.
 
         // Get student's enrollment to find their grade level
         $enrollment = \App\Models\Enrollment::where('student_id', $studentId)
@@ -506,12 +493,35 @@ class CertificateController extends Controller
             return false;
         }
 
-        // Get expected subjects for the student's grade level
-        // Assuming you have a relationship between year_levels and subjects
-        // You might need to adjust this based on your actual relationship structure
-        $expectedSubjectsCount = \App\Models\Subject::whereHas('yearLevels', function ($query) use ($enrollment) {
+        // Get expected subjects for the student's grade level using pivot
+        $expectedSubjectsCount = \App\Models\Subject::whereHas('yearLevelSubjects', function ($query) use ($enrollment) {
             $query->where('year_level_id', $enrollment->grade_level);
         })->where('is_active', true)->count();
+
+        // If pivot has no entries configured for this grade level, infer expected
+        // subjects from the student's distinct graded subjects for the quarter.
+        // Avoid querying non-existent schema columns (e.g. subjects.year_level_id).
+        if ($expectedSubjectsCount <= 0) {
+            $inferred = \App\Models\Grade::where('student_id', $studentId)
+                ->when($quarterId, fn($q) => $q->where('quarter_id', $quarterId))
+                ->distinct('subject_id')
+                ->count('subject_id');
+
+            if ($inferred > 0) {
+                $expectedSubjectsCount = $inferred;
+                Log::warning("YearLevelSubject pivot missing for grade_level={$enrollment->grade_level}; inferring expected subjects={$inferred} for student_id={$studentId} quarter_id={$quarterId}");
+                Log::info('isGradesComplete-debug', [
+                    'student_id' => $studentId,
+                    'quarter_id' => $quarterId,
+                    'enrollment' => $enrollment->toArray(),
+                    'inferred' => $inferred,
+                ]);
+            } else {
+                // Still zero: log and bail out
+                Log::warning("No expected subjects configured or inferred for grade_level={$enrollment->grade_level}; student_id={$studentId} quarter_id={$quarterId}");
+                return false;
+            }
+        }
 
         // If no relationship exists, you might have a direct foreign key or pivot table
         // Alternative approach if subjects are directly related to year_levels:
@@ -523,8 +533,20 @@ class CertificateController extends Controller
             ->where('quarter_id', $quarterId)
             ->count();
 
-        // Check if student has grades for all expected subjects
-        // You might want to allow some flexibility here (e.g., 90% completion)
-        return $actualGradesCount >= $expectedSubjectsCount && $expectedSubjectsCount > 0;
+        Log::info('isGradesComplete-debug-actual', [
+            'student_id' => $studentId,
+            'quarter_id' => $quarterId,
+            'expectedSubjectsCount' => $expectedSubjectsCount,
+            'actualGradesCount' => $actualGradesCount,
+        ]);
+
+        // Check if student has grades for all expected subjects.
+        // If there are zero expected subjects configured, consider it incomplete.
+        // You could relax this further (e.g. 90% threshold) if desired.
+        if ($expectedSubjectsCount <= 0) {
+            return false;
+        }
+
+        return $actualGradesCount >= $expectedSubjectsCount;
     }
 }
