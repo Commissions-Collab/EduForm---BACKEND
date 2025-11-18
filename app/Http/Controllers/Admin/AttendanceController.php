@@ -9,6 +9,7 @@ use App\Models\Attendance;
 use App\Models\Quarter;
 use App\Models\Schedule;
 use App\Models\ScheduleException;
+use App\Models\Section;
 use App\Models\Student;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
@@ -17,6 +18,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Validator;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class AttendanceController extends Controller
 {
@@ -786,5 +793,504 @@ class AttendanceController extends Controller
         }
 
         return $days;
+    }
+
+    /**
+     * Export SF2 (School Form 2) Daily Attendance Report as Excel
+     * 
+     * @param Request $request
+     * @return \Illuminate\Http\Response
+     */
+    public function exportSF2Excel(Request $request): \Illuminate\Http\Response
+    {
+        try {
+            $validator = Validator::make($request->all(), [
+                'section_id' => 'required|exists:sections,id',
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'month' => 'required|date_format:Y-m',
+            ]);
+
+            if ($validator->fails()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Validation failed',
+                    'errors' => $validator->errors()
+                ], 422);
+            }
+
+            $teacher = Auth::user()->teacher;
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Teacher profile not found'
+                ], 404);
+            }
+
+            $sectionId = $request->get('section_id');
+            $academicYearId = $request->get('academic_year_id');
+            $month = $request->get('month');
+
+            // Parse month
+            $date = Carbon::createFromFormat('Y-m', $month);
+            $startOfMonth = $date->copy()->startOfMonth();
+            $endOfMonth = $date->copy()->endOfMonth();
+            $monthName = $date->format('F');
+            $year = $date->format('Y');
+
+            // Get section and academic year
+            $section = Section::with(['yearLevel', 'academicYear'])->findOrFail($sectionId);
+            $academicYear = AcademicYear::findOrFail($academicYearId);
+
+            // Verify teacher has access to this section
+            $hasAccess = DB::table('section_advisors')
+                ->where('section_id', $sectionId)
+                ->where('teacher_id', $teacher->id)
+                ->where('academic_year_id', $academicYearId)
+                ->exists();
+
+            if (!$hasAccess) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Access denied to this section'
+                ], 403);
+            }
+
+            // Get enrolled students in section
+            $students = Student::whereHas('enrollments', function ($query) use ($sectionId, $academicYearId) {
+                $query->where('section_id', $sectionId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('enrollment_status', 'enrolled');
+            })
+                ->orderBy('last_name')
+                ->orderBy('first_name')
+                ->get();
+
+            // Get all attendance records for the month
+            $attendanceRecords = Attendance::whereIn('student_id', $students->pluck('id'))
+                ->whereBetween('attendance_date', [$startOfMonth->format('Y-m-d'), $endOfMonth->format('Y-m-d')])
+                ->where('academic_year_id', $academicYearId)
+                ->get();
+
+            // Group by student_id then by date
+            // If multiple records exist for same day, prioritize: absent > late > present
+            $attendances = [];
+            foreach ($attendanceRecords as $record) {
+                $studentId = $record->student_id;
+                $dateKey = $record->attendance_date->format('Y-m-d');
+                
+                if (!isset($attendances[$studentId][$dateKey])) {
+                    $attendances[$studentId][$dateKey] = $record;
+                } else {
+                    // If already exists, prioritize worst status (absent > late > present)
+                    $existingStatus = $attendances[$studentId][$dateKey]->status;
+                    $newStatus = $record->status;
+                    
+                    $priority = ['absent' => 3, 'late' => 2, 'present' => 1, 'excused' => 1];
+                    $existingPriority = $priority[$existingStatus] ?? 0;
+                    $newPriority = $priority[$newStatus] ?? 0;
+                    
+                    if ($newPriority > $existingPriority) {
+                        $attendances[$studentId][$dateKey] = $record;
+                    }
+                }
+            }
+
+            // Get all school days in the month (Monday to Friday)
+            $schoolDays = [];
+            $currentDate = $startOfMonth->copy();
+            while ($currentDate->lte($endOfMonth)) {
+                $dayOfWeek = $currentDate->dayOfWeek; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+                if ($dayOfWeek >= 1 && $dayOfWeek <= 5) { // Monday to Friday
+                    $schoolDays[] = $currentDate->copy();
+                }
+                $currentDate->addDay();
+            }
+
+            // Group school days by week
+            $weeks = [];
+            $currentWeek = [];
+            foreach ($schoolDays as $day) {
+                if (empty($currentWeek) || $day->dayOfWeek == 1) {
+                    if (!empty($currentWeek)) {
+                        $weeks[] = $currentWeek;
+                    }
+                    $currentWeek = [];
+                }
+                $currentWeek[] = $day;
+            }
+            if (!empty($currentWeek)) {
+                $weeks[] = $currentWeek;
+            }
+
+            // Create spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('SF2 Daily Attendance');
+
+            // Set column widths
+            $sheet->getColumnDimension('A')->setWidth(35); // Learner's Name
+            $col = 'B';
+            foreach ($weeks as $week) {
+                for ($i = 0; $i < 5; $i++) {
+                    $sheet->getColumnDimension($col)->setWidth(8);
+                    $col++;
+                }
+            }
+            $sheet->getColumnDimension($col)->setWidth(10); // ABSENT
+            $col++;
+            $sheet->getColumnDimension($col)->setWidth(10); // TARDY
+            $col++;
+            $sheet->getColumnDimension($col)->setWidth(30); // REMARKS
+
+            // Header Section
+            $row = 1;
+            $sheet->setCellValue('A' . $row, 'KAGAWARAN NG EDUKASYON');
+            $sheet->mergeCells('A' . $row . ':D' . $row);
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'REPUBLIKA NG PILIPINAS');
+            $sheet->mergeCells('A' . $row . ':D' . $row);
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
+
+            $row += 2;
+            $sheet->setCellValue('A' . $row, 'School Form 2 (SF2) Daily Attendance Report of Learners');
+            $sheet->mergeCells('A' . $row . ':F' . $row);
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $row++;
+            $sheet->setCellValue('A' . $row, '(This replaces Form 1, Form 2 & STS Form 4 - Absenteeism and Dropout Profile)');
+            $sheet->mergeCells('A' . $row . ':F' . $row);
+            $sheet->getStyle('A' . $row)->getFont()->setItalic(true)->setSize(10);
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $row += 2;
+            // School Information
+            $sheet->setCellValue('A' . $row, 'School ID:');
+            $sheet->setCellValue('B' . $row, ''); // Will be filled from database or config
+            $sheet->setCellValue('D' . $row, 'School Year:');
+            $sheet->setCellValue('E' . $row, $academicYear->name);
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'Report for the Month of:');
+            $sheet->setCellValue('B' . $row, $monthName . ' ' . $year);
+            $sheet->setCellValue('D' . $row, 'Name of School:');
+            $sheet->setCellValue('E' . $row, env('SCHOOL_NAME', 'Castañas National High School'));
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'Grade Level:');
+            $sheet->setCellValue('B' . $row, $section->yearLevel->name ?? 'N/A');
+            $sheet->setCellValue('D' . $row, 'Section:');
+            $sheet->setCellValue('E' . $row, $section->name);
+
+            $row += 2;
+
+            // Table Header
+            $headerRow = $row;
+            $sheet->setCellValue('A' . $row, 'LEARNER\'S NAME (Last Name, First Name, Middle Name)');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                ->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('A' . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('D9E1F2');
+
+            // Add week headers
+            $col = 'B';
+            $weekNum = 1;
+            foreach ($weeks as $week) {
+                $startCol = $col;
+                for ($i = 0; $i < 5; $i++) {
+                    $dayLabel = ['M', 'T', 'W', 'TH', 'F'][$i];
+                    $sheet->setCellValue($col . $row, $dayLabel);
+                    $sheet->getStyle($col . $row)->getFont()->setBold(true);
+                    $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $sheet->getStyle($col . $row)->getFill()
+                        ->setFillType(Fill::FILL_SOLID)
+                        ->getStartColor()->setRGB('D9E1F2');
+                    $col++;
+                }
+                $weekNum++;
+            }
+
+            // ABSENT and TARDY columns
+            $absentCol = $col;
+            $sheet->setCellValue($col . $row, 'ABSENT');
+            $sheet->getStyle($col . $row)->getFont()->setBold(true);
+            $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                ->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle($col . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('D9E1F2');
+            $col++;
+
+            $tardyCol = $col;
+            $sheet->setCellValue($col . $row, 'TARDY');
+            $sheet->getStyle($col . $row)->getFont()->setBold(true);
+            $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                ->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle($col . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('D9E1F2');
+            $col++;
+
+            $remarksCol = $col;
+            $sheet->setCellValue($col . $row, 'REMARKS');
+            $sheet->getStyle($col . $row)->getFont()->setBold(true);
+            $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
+                ->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle($col . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('D9E1F2');
+
+            // Date row (below header)
+            $row++;
+            $dateRow = $row;
+            $sheet->setCellValue('A' . $row, '1st row for date');
+            $sheet->getStyle('A' . $row)->getFont()->setItalic(true)->setSize(9);
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $col = 'B';
+            foreach ($weeks as $week) {
+                foreach ($week as $day) {
+                    $sheet->setCellValue($col . $row, $day->format('d'));
+                    $sheet->getStyle($col . $row)->getFont()->setSize(9);
+                    $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $col++;
+                }
+                // Fill remaining days in week if less than 5
+                while (substr($col, -1) != 'F' && Coordinate::columnIndexFromString($col) <= Coordinate::columnIndexFromString('F')) {
+                    $col++;
+                }
+            }
+
+            $row++;
+
+            // Student rows
+            $maleTotal = 0;
+            $femaleTotal = 0;
+            $dailyTotals = [];
+
+            foreach ($students as $student) {
+                $studentRow = $row;
+                $fullName = trim($student->last_name . ', ' . $student->first_name . ' ' . ($student->middle_name ?? ''));
+                $sheet->setCellValue('A' . $row, $fullName);
+                $sheet->getStyle('A' . $row)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+
+                $absentCount = 0;
+                $tardyCount = 0;
+
+                $col = 'B';
+                foreach ($weeks as $week) {
+                    foreach ($week as $day) {
+                        $dayKey = $day->format('Y-m-d');
+                        $attendance = $attendances[$student->id][$dayKey] ?? null;
+
+                        if ($attendance) {
+                            // Get status from attendance record
+                            $status = is_object($attendance) ? ($attendance->status ?? 'present') : 'present';
+                            if ($status === 'absent') {
+                                $sheet->setCellValue($col . $row, 'x');
+                                $absentCount++;
+                            } elseif ($status === 'late') {
+                                // Half-shaded for late (upper half)
+                                $sheet->setCellValue($col . $row, 'T');
+                                $tardyCount++;
+                            } else {
+                                // Present (blank)
+                                $sheet->setCellValue($col . $row, '');
+                            }
+                        } else {
+                            $sheet->setCellValue($col . $row, '');
+                        }
+
+                        $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                        $col++;
+                    }
+                }
+
+                // ABSENT total
+                $sheet->setCellValue($absentCol . $row, $absentCount);
+                $sheet->getStyle($absentCol . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                // TARDY total
+                $sheet->setCellValue($tardyCol . $row, $tardyCount);
+                $sheet->getStyle($tardyCol . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                // REMARKS (empty for now, can be filled from attendance remarks)
+                $sheet->setCellValue($remarksCol . $row, '');
+
+                // Track gender for summary
+                if ($student->gender === 'male') {
+                    $maleTotal++;
+                } else {
+                    $femaleTotal++;
+                }
+
+                $row++;
+            }
+
+            // Summary rows
+            $summaryStartRow = $row;
+            $row++;
+            $sheet->setCellValue('A' . $row, 'MALE | TOTAL Per Day');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('A' . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('E2EFDA');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'FEMALE | TOTAL Per Day');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('A' . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('E2EFDA');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'Combined TOTAL PER DAY');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('A' . $row)->getFill()
+                ->setFillType(Fill::FILL_SOLID)
+                ->getStartColor()->setRGB('E2EFDA');
+
+            // Apply borders to all data cells
+            $lastDataRow = $row;
+            $lastCol = Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($remarksCol));
+            $range = 'A' . $headerRow . ':' . $lastCol . $lastDataRow;
+            $sheet->getStyle($range)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => '000000'],
+                    ],
+                ],
+            ]);
+
+            // Guidelines section (on the left side, below the table)
+            $guidelinesRow = $lastDataRow + 3;
+            $sheet->setCellValue('A' . $guidelinesRow, 'GUIDELINES:');
+            $sheet->getStyle('A' . $guidelinesRow)->getFont()->setBold(true)->setSize(11);
+
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '1. The attendance shall be accomplished daily. Refer to the codes for checking learners\' attendance.');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '2. Dates shall be written in the columns after Learner\'s Name.');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '3. To compute the following:');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '   a. Percentage of Enrolment = (Registered Learners as of end of the month / Enrolment as of 1st Friday of the school year) x 100');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '   b. Average Daily Attendance = Total Daily Attendance / Number of School Days in reporting month');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '   c. Percentage of Attendance for the month = (Average daily attendance / Registered Learners as of end of the month) x 100');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '4. Every end of the month, the class adviser will submit this form to the office of the principal for recording of summary table into School Form 4.');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '5. The adviser will provide necessary interventions including but not limited to home visitation to learner/s who were absent for 5 consecutive days.');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '6. Attendance performance of learners will be reflected in Form 137 and Form 138 every grading period.');
+            $guidelinesRow++;
+            $sheet->setCellValue('A' . $guidelinesRow, '* Beginning of School Year cut-off report is every 1st Friday of the School Year');
+
+            // Codes section
+            $codesRow = $guidelinesRow + 2;
+            $sheet->setCellValue('A' . $codesRow, '1. CODES FOR CHECKING ATTENDANCE:');
+            $sheet->getStyle('A' . $codesRow)->getFont()->setBold(true)->setSize(11);
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, '(blank)-Present; (x)- Absent; Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)');
+            $codesRow += 2;
+            $sheet->setCellValue('A' . $codesRow, '2. REASONS/CAUSES FOR DROPPING OUT:');
+            $sheet->getStyle('A' . $codesRow)->getFont()->setBold(true)->setSize(11);
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, 'a. Domestic-Related Factors: (1. Had to take care of siblings, 2. Early marriage/pregnancy, 3. Parents\' attitude toward schooling, 4. Family problems)');
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, 'b. Individual-Related Factors: (1. Illness, 2. Overage, 3. Death, 4. Drug Abuse, 5. Poor academic performance, 6. Lack of interest/Distractions, 7. Hunger/Malnutrition)');
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, 'c. School-Related Factors: (1. Teacher Factor, 2. Physical condition of classroom, 3. Peer influence)');
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, 'd. Geographic/Environmental: (1. Distance between home and school, 2. Armed conflict, 3. Calamities/Disasters)');
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, 'e. Financial-Related: (1. Child labor, work)');
+            $codesRow++;
+            $sheet->setCellValue('A' . $codesRow, 'f. Others (Specify)');
+
+            // Summary table (on the right side)
+            $summaryTableRow = $lastDataRow + 3;
+            $summaryTableCol = Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($remarksCol) + 2);
+            $sheet->setCellValue($summaryTableCol . $summaryTableRow, 'Month: ' . $monthName);
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryTableCol . $summaryTableRow, 'No. of Days of Classes: ' . count($schoolDays));
+            $summaryTableRow += 2;
+
+            // Summary table headers
+            $summaryHeaders = ['M', 'F', 'TOTAL'];
+            $summaryStartCol = $summaryTableCol;
+            foreach ($summaryHeaders as $header) {
+                $sheet->setCellValue($summaryTableCol . $summaryTableRow, $header);
+                $sheet->getStyle($summaryTableCol . $summaryTableRow)->getFont()->setBold(true);
+                $sheet->getStyle($summaryTableCol . $summaryTableRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $summaryTableCol++;
+            }
+            $summaryTableRow++;
+
+            // Summary data
+            $enrollment = $students->count();
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, '*Enrolment as of (1st Friday of June)');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Late Enrollment during the month (beyond cut-off)');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Registered Learners as of end of the month');
+            $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($summaryStartCol) + 2) . $summaryTableRow, $enrollment);
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Percentage of Enrolment as of end of the month');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Average Daily Attendance');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Percentage of Attendance for the month');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Number of students absent for 5 consecutive days:');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Drop out');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Transferred out');
+            $summaryTableRow++;
+            $sheet->setCellValue($summaryStartCol . $summaryTableRow, 'Transferred in');
+
+            // Certification
+            $certRow = $summaryTableRow + 3;
+            $sheet->setCellValue($summaryStartCol . $certRow, 'I certify that this is a true and correct report.');
+            $certRow += 2;
+            $sheet->setCellValue($summaryStartCol . $certRow, '(Signature of Teacher over Printed Name)');
+            $certRow += 2;
+            $sheet->setCellValue($summaryStartCol . $certRow, 'Attested by:');
+            $certRow++;
+            $sheet->setCellValue($summaryStartCol . $certRow, '(Signature of School Head over Printed Name)');
+
+            // Footer
+            $footerRow = $certRow + 2;
+            $sheet->setCellValue('A' . $footerRow, 'School Form 2: Page ___ of ___');
+
+            // Generate Excel file
+            $writer = new Xlsx($spreadsheet);
+            $fileName = 'SF2_Daily_Attendance_' . $section->name . '_' . $monthName . '_' . $year . '.xlsx';
+
+            ob_start();
+            $writer->save('php://output');
+            $content = ob_get_contents();
+            ob_end_clean();
+
+            return response($content)
+                ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"')
+                ->header('Cache-Control', 'max-age=0');
+        } catch (\Exception $e) {
+            Log::error('SF2 Excel Export Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export SF2 Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

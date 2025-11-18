@@ -145,6 +145,9 @@ Route::middleware('auth:sanctum')->group(function () {
              * Enrollment Management
              */
             Route::controller(EnrollmentController::class)->group(function () {
+                // Export routes must come before {id} routes to avoid route conflicts
+                Route::get('/enrollments/export-sf1-excel', 'exportSF1Excel');
+                
                 // Enrollments CRUD Operations
                 Route::get('/enrollments', 'index');
                 Route::post('/enrollments', 'store');
@@ -193,6 +196,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::controller(SuperAdminMonthlyAttendanceController::class)->group(function () {
                 Route::get('/sections/{sectionId}/monthly-attendance', 'getMonthlyAttendanceSummary');
                 Route::get('/sections/{sectionId}/attendance/quarterly/pdf', [AttendancePDFController::class, 'exportQuarterlyAttendancePDF']);
+                Route::get('/monthly-attendance/export-sf4-excel', 'exportSF4Excel');
             });
 
 
@@ -227,6 +231,8 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/sf5-sf6/statistics', 'getFormStatistics');
                 Route::post('/sf5-sf6/export-pdf', 'exportFormPDF');
                 Route::get('/sf5-sf6/preview/{type}/{sectionId}', 'previewForm');
+                Route::get('/sf5-sf6/export-sf5-excel', 'exportSF5Excel');
+                Route::get('/sf5-sf6/export-sf6-excel', 'exportSF6Excel');
             });
 
 
@@ -272,6 +278,7 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::post('/update-individual', 'updateIndividualAttendance');
                 Route::post('/update-bulk', 'updateBulkAttendance');
                 Route::post('/update-all', 'updateAllStudentsAttendance');
+                Route::get('/export-sf2-excel', 'exportSF2Excel');
             });
 
             // Student-specific routes
@@ -295,6 +302,7 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::controller(PromotionReportController::class)->group(function () {
             Route::get('/promotion-reports/statistics', 'getPromotionReportStatistics');
             Route::get('/promotion-reports/filters', 'getPromotionFilterOptions');
+            Route::get('/promotion-reports/export-sf5-excel', 'exportSF5Excel');
         });
 
         Route::get('/book-management/filter-options', [BookManagementController::class, 'getFilterOptions']);
