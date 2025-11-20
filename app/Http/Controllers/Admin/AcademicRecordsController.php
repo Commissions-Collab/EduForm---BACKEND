@@ -10,10 +10,18 @@ use App\Models\Section;
 use App\Models\Student;
 use App\Models\Subject;
 use App\Models\TeacherSubject;
+use App\Models\Quarter;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Carbon\Carbon;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Cell\Coordinate;
 
 class AcademicRecordsController extends Controller
 {
@@ -495,5 +503,245 @@ class AcademicRecordsController extends Controller
         }
 
         return $assignments;
+    }
+
+    /**
+     * Export SF9 Excel - Learner's Progress Report Card
+     */
+    public function exportSF9Excel(Request $request)
+    {
+        try {
+            $request->validate([
+                'academic_year_id' => 'required|exists:academic_years,id',
+                'quarter_id' => 'required|exists:quarters,id',
+                'section_id' => 'required|exists:sections,id',
+            ]);
+
+            $user = Auth::user();
+            $teacher = $user->teacher;
+
+            if (!$teacher) {
+                return response()->json(['error' => 'Teacher profile not found'], 404);
+            }
+
+            $academicYearId = $request->academic_year_id;
+            $quarterId = $request->quarter_id;
+            $sectionId = $request->section_id;
+
+            $section = Section::with(['yearLevel', 'academicYear'])->findOrFail($sectionId);
+            $academicYear = AcademicYear::findOrFail($academicYearId);
+            $quarter = Quarter::findOrFail($quarterId);
+
+            // Get all subjects for this teacher in this academic year
+            $allSubjects = Subject::whereHas('teacherSubjects', function ($query) use ($academicYearId, $teacher) {
+                $query->where('academic_year_id', $academicYearId);
+                $query->where('teacher_id', $teacher->id);
+            })->orderBy('name')->get();
+
+            // Get students with their grades
+            $students = Student::whereHas('enrollments', function ($query) use ($sectionId, $academicYearId) {
+                $query->where('section_id', $sectionId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->where('enrollment_status', 'enrolled');
+            })->with(['grades' => function ($query) use ($quarterId) {
+                $query->where('quarter_id', $quarterId);
+            }])->orderBy('last_name')->orderBy('first_name')->get();
+
+            // Create spreadsheet
+            $spreadsheet = new Spreadsheet();
+            $sheet = $spreadsheet->getActiveSheet();
+            $sheet->setTitle('SF9 Academic Records');
+
+            // Calculate column count (LRN, Name, subjects, General Average, Remarks)
+            $numSubjects = $allSubjects->count();
+            $lastColIndex = 2 + $numSubjects + 2; // LRN(1) + Name(1) + Subjects + General Average(1) + Remarks(1)
+            $lastCol = Coordinate::stringFromColumnIndex($lastColIndex);
+
+            // Set column widths
+            $sheet->getColumnDimension('A')->setWidth(12); // LRN
+            $sheet->getColumnDimension('B')->setWidth(25); // Learner's Name
+            for ($i = 0; $i < $numSubjects; $i++) {
+                $col = Coordinate::stringFromColumnIndex(3 + $i);
+                $sheet->getColumnDimension($col)->setWidth(12);
+            }
+            $generalAvgCol = Coordinate::stringFromColumnIndex(3 + $numSubjects);
+            $remarksCol = Coordinate::stringFromColumnIndex(4 + $numSubjects);
+            $sheet->getColumnDimension($generalAvgCol)->setWidth(15); // General Average
+            $sheet->getColumnDimension($remarksCol)->setWidth(20); // Remarks
+
+            // Header Section
+            $row = 1;
+            $sheet->setCellValue('A' . $row, 'School Form 9 (SF 9) Learner\'s Progress Report Card');
+            $sheet->mergeCells('A' . $row . ':' . $lastCol . $row);
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+            $row += 2;
+            // School Information
+            $sheet->setCellValue('A' . $row, 'School Name:');
+            $sheet->setCellValue('B' . $row, env('SCHOOL_NAME', 'AcadFlow School'));
+            $sheet->setCellValue('D' . $row, 'School ID:');
+            $sheet->setCellValue('E' . $row, '');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'District:');
+            $sheet->setCellValue('B' . $row, '');
+            $sheet->setCellValue('D' . $row, 'Division:');
+            $sheet->setCellValue('E' . $row, '');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'Region:');
+            $sheet->setCellValue('B' . $row, '');
+            $sheet->setCellValue('D' . $row, 'School Year:');
+            $sheet->setCellValue('E' . $row, $academicYear->name);
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'Grade Level:');
+            $sheet->setCellValue('B' . $row, $section->yearLevel->name ?? '');
+            $sheet->setCellValue('D' . $row, 'Section:');
+            $sheet->setCellValue('E' . $row, $section->name);
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'Quarter:');
+            $sheet->setCellValue('B' . $row, $quarter->name ?? '');
+
+            $row += 2;
+
+            // Table Header
+            $headerRow = $row;
+            $sheet->setCellValue('A' . $row, 'LRN');
+            $sheet->setCellValue('B' . $row, 'Learner\'s Name');
+            $sheet->mergeCells('B' . $row . ':B' . ($row + 1));
+
+            // Subject columns
+            $colIndex = 3;
+            foreach ($allSubjects as $subject) {
+                $col = Coordinate::stringFromColumnIndex($colIndex);
+                $sheet->setCellValue($col . $row, $subject->name);
+                $sheet->mergeCells($col . $row . ':' . $col . ($row + 1));
+                $colIndex++;
+            }
+
+            // General Average and Remarks
+            $sheet->setCellValue($generalAvgCol . $row, 'General Average');
+            $sheet->mergeCells($generalAvgCol . $row . ':' . $generalAvgCol . ($row + 1));
+            $sheet->setCellValue($remarksCol . $row, 'Remarks');
+            $sheet->mergeCells($remarksCol . $row . ':' . $remarksCol . ($row + 1));
+
+            // Apply header styling
+            $headerRange = 'A' . $headerRow . ':' . $lastCol . ($row + 1);
+            $sheet->getStyle($headerRange)->applyFromArray([
+                'font' => ['bold' => true, 'size' => 9],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+                'fill' => [
+                    'fillType' => Fill::FILL_SOLID,
+                    'startColor' => ['rgb' => 'D9E1F2']
+                ],
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => '000000']
+                    ]
+                ]
+            ]);
+
+            $row += 2;
+
+            // Student data rows
+            foreach ($students as $student) {
+                $sheet->setCellValue('A' . $row, $student->lrn ?? '');
+                $sheet->setCellValue('B' . $row, trim($student->last_name . ', ' . $student->first_name . ' ' . ($student->middle_name ?? '')));
+
+                $totalGrade = 0;
+                $gradeCount = 0;
+                $colIndex = 3;
+
+                foreach ($allSubjects as $subject) {
+                    $col = Coordinate::stringFromColumnIndex($colIndex);
+                    $grade = $student->grades->where('subject_id', $subject->id)->first();
+                    $gradeValue = $grade ? $grade->grade : null;
+
+                    if ($gradeValue !== null) {
+                        $sheet->setCellValue($col . $row, round($gradeValue, 2));
+                        $totalGrade += $gradeValue;
+                        $gradeCount++;
+                    } else {
+                        $sheet->setCellValue($col . $row, '');
+                    }
+                    $colIndex++;
+                }
+
+                // General Average
+                $generalAverage = $gradeCount > 0 ? round($totalGrade / $gradeCount, 2) : null;
+                if ($generalAverage !== null) {
+                    $sheet->setCellValue($generalAvgCol . $row, $generalAverage);
+                } else {
+                    $sheet->setCellValue($generalAvgCol . $row, '');
+                }
+
+                // Remarks/Status
+                $status = $this->getPassingStatus($generalAverage);
+                $sheet->setCellValue($remarksCol . $row, $status);
+
+                $row++;
+            }
+
+            // Apply borders to data area
+            $dataRange = 'A' . $headerRow . ':' . $lastCol . ($row - 1);
+            $sheet->getStyle($dataRange)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => '000000']
+                    ]
+                ]
+            ]);
+
+            // Footer - Guidelines
+            $row += 3;
+            $sheet->setCellValue('A' . $row, 'GUIDELINES:');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(11);
+            $row++;
+            $sheet->setCellValue('A' . $row, '1. This form shall be accomplished every grading period.');
+            $row++;
+            $sheet->setCellValue('A' . $row, '2. Final rating per subject area should be taken from the record of subject teachers.');
+            $row++;
+            $sheet->setCellValue('A' . $row, '3. The class adviser should compute for the General Average.');
+            $row++;
+            $sheet->setCellValue('A' . $row, '4. Remarks: Passing (75 and above), Failing (below 75), Incomplete (missing grades)');
+
+            // Signatures
+            $row += 3;
+            $sheet->setCellValue('A' . $row, 'PREPARED BY:');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $row += 2;
+            $sheet->setCellValue('A' . $row, '(Signature of Class Adviser over Printed Name)');
+            $row += 3;
+            $sheet->setCellValue('A' . $row, 'CERTIFIED CORRECT & SUBMITTED:');
+            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+            $row += 2;
+            $sheet->setCellValue('A' . $row, '(Signature of School Head over Printed Name)');
+
+            // Generate Excel file
+            $writer = new Xlsx($spreadsheet);
+            $fileName = 'SF9_Academic_Records_' . $section->name . '_' . ($quarter->name ?? 'Q' . $quarterId) . '_' . $academicYear->name . '.xlsx';
+
+            ob_start();
+            $writer->save('php://output');
+            $content = ob_get_contents();
+            ob_end_clean();
+
+            return response($content)
+                ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"')
+                ->header('Cache-Control', 'max-age=0');
+        } catch (\Exception $e) {
+            Log::error('SF9 Excel Export Error: ' . $e->getMessage());
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to export SF9 Excel',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

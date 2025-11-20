@@ -468,16 +468,6 @@ class MonthlyAttendanceController extends Controller
 
             // Header Section
             $row = 1;
-            $sheet->setCellValue('A' . $row, 'KAGAWARAN NG EDUKASYON');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'REPUBLIKA NG PILIPINAS');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row += 2;
             $sheet->setCellValue('A' . $row, 'School Form 4 (SF4) Monthly Learner\'s Movement and Attendance');
             $sheet->mergeCells('A' . $row . ':AM' . $row);
             $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);

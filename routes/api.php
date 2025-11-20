@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AcademicRecordsController;
 use App\Http\Controllers\Admin\AttendanceController;
 use App\Http\Controllers\SuperAdmin\AttendancePDFController;
 use App\Http\Controllers\SuperAdmin\BookManagementController;
+use App\Http\Controllers\Admin\BookManagementController as AdminBookManagementController;
 use App\Http\Controllers\Admin\CertificateController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\ParentsConferenceController;
@@ -297,6 +298,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/academic-records/students-grade', 'getStudentsGrade');
             Route::get('/academic-records/statistics', 'getGradeStatistics');
             Route::put('/academic-records/update-grade', 'updateGrade');
+            // Export routes must come before {id} routes to avoid route conflicts
+            Route::get('/academic-records/export-sf9-excel', 'exportSF9Excel');
         });
 
         Route::controller(PromotionReportController::class)->group(function () {
@@ -305,10 +308,12 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/promotion-reports/export-sf5-excel', 'exportSF5Excel');
         });
 
-        Route::get('/book-management/filter-options', [BookManagementController::class, 'getFilterOptions']);
-        Route::post('/book-management/distribute-books', [BookManagementController::class, 'distributeBooks']);
-        Route::put('/book-management/return-book/{id}', [BookManagementController::class, 'returnBook']);
-        Route::apiResource('/book-management', BookManagementController::class);
+        Route::get('/book-management/filter-options', [AdminBookManagementController::class, 'getFilterOptions']);
+        Route::post('/book-management/distribute-books', [AdminBookManagementController::class, 'distributeBooks']);
+        Route::put('/book-management/return-book/{id}', [AdminBookManagementController::class, 'returnBook']);
+        // Export routes must come before {id} routes to avoid route conflicts
+        Route::get('/book-management/export-sf3-excel', [AdminBookManagementController::class, 'exportSF3Excel']);
+        Route::apiResource('/book-management', AdminBookManagementController::class);
 
         Route::controller(WorkloadManagementController::class)->prefix('/workload')->group(function () {
             Route::get('/', 'index');
@@ -329,6 +334,8 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::get('/print-all-student-cards', 'printAllStudentReportCards');
         });
 
+        // Export routes must come before {id} routes to avoid route conflicts
+        Route::get('/student-bmi/export-sf8-excel', [StudentBmiController::class, 'exportSF8Excel']);
         Route::apiResource('/student-bmi', StudentBmiController::class);
     });
 

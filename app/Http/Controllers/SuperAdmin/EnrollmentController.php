@@ -511,16 +511,6 @@ class EnrollmentController extends Controller
 
             // Header Section
             $row = 1;
-            $sheet->setCellValue('A' . $row, 'KAGAWARAN NG EDUKASYON');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'REPUBLIKA NG PILIPINAS');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row += 2;
             $sheet->setCellValue('A' . $row, 'School Form 1 (SF 1) School Register');
             $sheet->mergeCells('A' . $row . ':X' . $row);
             $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);

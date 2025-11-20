@@ -605,16 +605,6 @@ class SuperAdminFormController extends Controller
 
             // Header Section
             $row = 1;
-            $sheet->setCellValue('A' . $row, 'KAGAWARAN NG EDUKASYON');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'REPUBLIKA NG PILIPINAS');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row += 2;
             $sheet->setCellValue('A' . $row, 'School Form 5 (SF 5) Report on Promotion & Level of Proficiency');
             $sheet->mergeCells('A' . $row . ':F' . $row);
             $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
@@ -991,16 +981,6 @@ class SuperAdminFormController extends Controller
 
             // Header Section
             $row = 1;
-            $sheet->setCellValue('A' . $row, 'KAGAWARAN NG EDUKASYON');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'REPUBLIKA NG PILIPINAS');
-            $sheet->mergeCells('A' . $row . ':D' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(12);
-
-            $row += 2;
             $sheet->setCellValue('A' . $row, 'School Form 6 (SF 6) Learner Progress Report');
             // Calculate last column: A(1) + B(1) + subject columns + Final Average(1) + Action Taken(1)
             // Starting from C (index 3), we have: quarters * subjects + 2 more columns (Final Average + Action Taken)
