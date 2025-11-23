@@ -342,6 +342,37 @@ class AttendanceController extends Controller
             // Handle date parameter (frontend sends 'date', backend expects 'attendance_date')
             $attendanceDate = $request->attendance_date ?? $request->date;
 
+            // Prepare attendance data
+            $attendanceData = [
+                'student_id' => $request->student_id,
+                'schedule_id' => $request->schedule_id,
+                'attendance_date' => $attendanceDate,
+                'academic_year_id' => $academicYear->id,
+                'quarter_id' => $currentQuarter->id,
+                'status' => strtolower($request->status),
+                'time_in' => $request->time_in,
+                'time_out' => $request->time_out,
+                'remarks' => $request->remarks ?? $request->reason,
+            ];
+
+            // Apply tardiness rule if status is "late"
+            $attendanceData = AttendanceHelper::applyTardinessRule($attendanceData);
+
+            // Store tardiness metadata separately
+            $tardinessInfo = null;
+            if (isset($attendanceData['tardiness_conversion'])) {
+                $tardinessInfo = [
+                    'converted' => $attendanceData['tardiness_conversion'],
+                    'message' => $attendanceData['tardiness_message']
+                ];
+                unset($attendanceData['tardiness_conversion']);
+                unset($attendanceData['tardiness_message']);
+            }
+
+            // Add recording metadata
+            $attendanceData['recorded_by'] = Auth::id();
+            $attendanceData['recorded_at'] = now();
+
             // Update or create attendance record
             $attendance = Attendance::updateOrCreate(
                 [
@@ -349,27 +380,26 @@ class AttendanceController extends Controller
                     'schedule_id' => $request->schedule_id,
                     'attendance_date' => $attendanceDate
                 ],
-                [
-                    'academic_year_id' => $academicYear->id,
-                    'quarter_id' => $currentQuarter->id,
-                    'status' => strtolower($request->status), // Ensure lowercase
-                    'time_in' => $request->time_in,
-                    'time_out' => $request->time_out,
-                    'remarks' => $request->remarks ?? $request->reason,
-                    'recorded_by' => Auth::id(),
-                    'recorded_at' => now()
-                ]
+                $attendanceData
             );
 
             DB::commit();
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'message' => 'Attendance updated successfully',
                 'data' => [
                     'attendance' => $attendance
                 ]
-            ]);
+            ];
+
+            // Add tardiness warning if conversion happened
+            if ($tardinessInfo && $tardinessInfo['converted']) {
+                $response['warning'] = $tardinessInfo['message'];
+                $response['tardiness_conversion'] = true;
+            }
+
+            return response()->json($response);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
@@ -417,28 +447,49 @@ class AttendanceController extends Controller
 
             $academicYear = $this->getCurrentAcademicYear();
             $currentQuarter = $this->getCurrentQuarter($academicYear->id);
+
             $updatedAttendances = [];
+            $tardinessConversions = [];
 
             DB::beginTransaction();
 
             foreach ($request->attendances as $attendanceData) {
-                // Update or create attendance record
+                // Prepare attendance data
+                $data = [
+                    'student_id' => $attendanceData['student_id'],
+                    'schedule_id' => $request->schedule_id,
+                    'attendance_date' => $request->attendance_date,
+                    'academic_year_id' => $academicYear->id,
+                    'quarter_id' => $currentQuarter->id,
+                    'status' => strtolower($attendanceData['status']),
+                    'time_in' => $attendanceData['time_in'] ?? null,
+                    'time_out' => $attendanceData['time_out'] ?? null,
+                    'remarks' => $attendanceData['remarks'] ?? $attendanceData['reason'] ?? null,
+                ];
+
+                // Apply tardiness rule
+                $data = AttendanceHelper::applyTardinessRule($data);
+
+                // Track conversions
+                if (isset($data['tardiness_conversion']) && $data['tardiness_conversion']) {
+                    $tardinessConversions[] = [
+                        'student_id' => $attendanceData['student_id'],
+                        'message' => $data['tardiness_message']
+                    ];
+                    unset($data['tardiness_conversion']);
+                    unset($data['tardiness_message']);
+                }
+
+                $data['recorded_by'] = Auth::id();
+                $data['recorded_at'] = now();
+
                 $attendance = Attendance::updateOrCreate(
                     [
                         'student_id' => $attendanceData['student_id'],
                         'schedule_id' => $request->schedule_id,
                         'attendance_date' => $request->attendance_date
                     ],
-                    [
-                        'academic_year_id' => $academicYear->id,
-                        'quarter_id' => $currentQuarter->id,
-                        'status' => strtolower($attendanceData['status']),
-                        'time_in' => $attendanceData['time_in'] ?? null,
-                        'time_out' => $attendanceData['time_out'] ?? null,
-                        'remarks' => $attendanceData['remarks'] ?? $attendanceData['reason'] ?? null,
-                        'recorded_by' => Auth::id(),
-                        'recorded_at' => now()
-                    ]
+                    $data
                 );
 
                 $updatedAttendances[] = $attendance;
@@ -446,14 +497,22 @@ class AttendanceController extends Controller
 
             DB::commit();
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'message' => 'Bulk attendance updated successfully',
                 'data' => [
                     'updated_count' => count($updatedAttendances),
                     'attendances' => $updatedAttendances
                 ]
-            ]);
+            ];
+
+            // Add tardiness warnings if any conversions happened
+            if (!empty($tardinessConversions)) {
+                $response['tardiness_conversions'] = $tardinessConversions;
+                $response['warning'] = count($tardinessConversions) . ' student(s) reached 5th late and were marked as ABSENT';
+            }
+
+            return response()->json($response);
         } catch (\Throwable $th) {
             DB::rollBack();
             return response()->json([
@@ -506,31 +565,51 @@ class AttendanceController extends Controller
 
             $academicYear = $this->getCurrentAcademicYear();
             $currentQuarter = $this->getCurrentQuarter($academicYear->id);
-            $updatedAttendances = [];
 
-            // Handle date parameter (frontend might send 'date' instead of 'attendance_date')
+            $updatedAttendances = [];
+            $tardinessConversions = [];
             $attendanceDate = $request->attendance_date ?? $request->date ?? Carbon::now()->format('Y-m-d');
 
             DB::beginTransaction();
 
             foreach ($students as $student) {
-                // Update or create attendance record
+                // Prepare attendance data
+                $data = [
+                    'student_id' => $student->id,
+                    'schedule_id' => $request->schedule_id,
+                    'attendance_date' => $attendanceDate,
+                    'academic_year_id' => $academicYear->id,
+                    'quarter_id' => $currentQuarter->id,
+                    'status' => strtolower($request->status),
+                    'time_in' => $request->time_in,
+                    'time_out' => $request->time_out,
+                    'remarks' => $request->remarks ?? $request->reason,
+                ];
+
+                // Apply tardiness rule
+                $data = AttendanceHelper::applyTardinessRule($data);
+
+                // Track conversions
+                if (isset($data['tardiness_conversion']) && $data['tardiness_conversion']) {
+                    $tardinessConversions[] = [
+                        'student_id' => $student->id,
+                        'student_name' => $student->first_name . ' ' . $student->last_name,
+                        'message' => $data['tardiness_message']
+                    ];
+                    unset($data['tardiness_conversion']);
+                    unset($data['tardiness_message']);
+                }
+
+                $data['recorded_by'] = Auth::id();
+                $data['recorded_at'] = now();
+
                 $attendance = Attendance::updateOrCreate(
                     [
                         'student_id' => $student->id,
                         'schedule_id' => $request->schedule_id,
                         'attendance_date' => $attendanceDate
                     ],
-                    [
-                        'academic_year_id' => $academicYear->id,
-                        'quarter_id' => $currentQuarter->id,
-                        'status' => strtolower($request->status),
-                        'time_in' => $request->time_in,
-                        'time_out' => $request->time_out,
-                        'remarks' => $request->remarks ?? $request->reason,
-                        'recorded_by' => Auth::id(),
-                        'recorded_at' => now()
-                    ]
+                    $data
                 );
 
                 $updatedAttendances[] = $attendance;
@@ -538,7 +617,7 @@ class AttendanceController extends Controller
 
             DB::commit();
 
-            return response()->json([
+            $response = [
                 'success' => true,
                 'message' => 'All students attendance updated successfully',
                 'data' => [
@@ -547,7 +626,15 @@ class AttendanceController extends Controller
                     'status_applied' => $request->status,
                     'attendances' => $updatedAttendances
                 ]
-            ]);
+            ];
+
+            // Add tardiness warnings if any conversions happened
+            if (!empty($tardinessConversions)) {
+                $response['tardiness_conversions'] = $tardinessConversions;
+                $response['warning'] = count($tardinessConversions) . ' student(s) reached 5th late and were marked as ABSENT';
+            }
+
+            return response()->json($response);
         } catch (\Exception $e) {
             DB::rollBack();
             return response()->json([
@@ -714,17 +801,17 @@ class AttendanceController extends Controller
         if (!$academicYearId) {
             // Try with boolean first
             $currentYear = AcademicYear::where('is_current', true)->first();
-            
+
             // If not found, try with integer 1
             if (!$currentYear) {
                 $currentYear = AcademicYear::where('is_current', 1)->first();
             }
-            
+
             // If still not found, get the most recent one
             if (!$currentYear) {
                 $currentYear = AcademicYear::orderBy('id', 'desc')->first();
             }
-            
+
             if (!$currentYear) {
                 return null;
             }
@@ -877,18 +964,18 @@ class AttendanceController extends Controller
             foreach ($attendanceRecords as $record) {
                 $studentId = $record->student_id;
                 $dateKey = $record->attendance_date->format('Y-m-d');
-                
+
                 if (!isset($attendances[$studentId][$dateKey])) {
                     $attendances[$studentId][$dateKey] = $record;
                 } else {
                     // If already exists, prioritize worst status (absent > late > present)
                     $existingStatus = $attendances[$studentId][$dateKey]->status;
                     $newStatus = $record->status;
-                    
+
                     $priority = ['absent' => 3, 'late' => 2, 'present' => 1, 'excused' => 1];
                     $existingPriority = $priority[$existingStatus] ?? 0;
                     $newPriority = $priority[$newStatus] ?? 0;
-                    
+
                     if ($newPriority > $existingPriority) {
                         $attendances[$studentId][$dateKey] = $record;
                     }
@@ -1282,5 +1369,277 @@ class AttendanceController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Get tardiness statistics for a student
+     * 
+     * @param int $studentId
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getStudentTardinessStats($studentId, Request $request): JsonResponse
+    {
+        try {
+            $teacher = Auth::user()->teacher;
+            $academicYear = $this->getCurrentAcademicYear($request->get('academic_year_id'));
+            $quarterId = $request->get('quarter_id');
+
+            // Verify student belongs to one of teacher's sections
+            $student = Student::whereHas('enrollments.section.schedules', function ($query) use ($teacher, $academicYear) {
+                $query->where('teacher_id', $teacher->id)
+                    ->where('academic_year_id', $academicYear->id);
+            })->find($studentId);
+
+            if (!$student) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Student not found or access denied'
+                ], 404);
+            }
+
+            $stats = AttendanceHelper::getTardinessStats(
+                $studentId,
+                $academicYear->id,
+                $quarterId
+            );
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'student' => [
+                        'id' => $student->id,
+                        'name' => $student->first_name . ' ' . $student->last_name
+                    ],
+                    'academic_year' => [
+                        'id' => $academicYear->id,
+                        'name' => $academicYear->name
+                    ],
+                    'tardiness_stats' => $stats
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to get tardiness statistics',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Get monthly class schedule for the authenticated teacher
+     * 
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getMonthlySchedule(Request $request): JsonResponse
+    {
+        try {
+            $teacher = Auth::user()->teacher;
+            if (!$teacher) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Teacher profile not found'
+                ], 404);
+            }
+
+            $academicYearId = $request->get('academic_year_id');
+            $sectionId = $request->get('section_id');
+            $quarterId = $request->get('quarter_id');
+
+            // Get current academic year or allow override via request
+            $academicYear = $this->getCurrentAcademicYear($academicYearId);
+
+            if (!$academicYear) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Academic year not found',
+                ], 404);
+            }
+
+            // Get month dates (default to current month or specified month)
+            $monthStart = $request->get('month_start')
+                ? Carbon::parse($request->get('month_start'))->startOfMonth()
+                : Carbon::now()->startOfMonth();
+
+            $monthEnd = $monthStart->copy()->endOfMonth();
+
+            // Build query for teacher's schedules
+            $schedulesQuery = Schedule::with([
+                'subject:id,name,code',
+                'section:id,name',
+                'section.yearLevel:id,name',
+                'scheduleExceptions' => function ($query) use ($monthStart, $monthEnd) {
+                    $query->whereBetween('date', [$monthStart->format('Y-m-d'), $monthEnd->format('Y-m-d')]);
+                }
+            ])
+                ->where('teacher_id', $teacher->id)
+                ->where('academic_year_id', $academicYear->id)
+                ->where('is_active', true);
+
+            // Apply section filter if provided
+            if ($sectionId) {
+                $schedulesQuery->where('section_id', $sectionId);
+            }
+
+            $schedules = $schedulesQuery
+                ->orderBy('day_of_week')
+                ->orderBy('start_time')
+                ->get();
+
+            // Get academic calendar for the month (holidays, special events)
+            $calendarEvents = $this->getMonthCalendarEvents($academicYear->id, $monthStart, $monthEnd);
+
+            // Format schedule by dates
+            $monthlySchedule = $this->formatMonthlySchedule($schedules, $monthStart, $monthEnd, $calendarEvents);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'academic_year' => [
+                        'id' => $academicYear->id,
+                        'name' => $academicYear->name
+                    ],
+                    'month_period' => [
+                        'start' => $monthStart->format('Y-m-d'),
+                        'end' => $monthEnd->format('Y-m-d'),
+                        'month' => $monthStart->format('F Y')
+                    ],
+                    'schedule' => $monthlySchedule,
+                    'calendar_events' => $calendarEvents,
+                    // Flatten schedules for easier frontend consumption
+                    'schedules' => $schedules->map(function ($schedule) {
+                        return [
+                            'id' => $schedule->id,
+                            'subject' => $schedule->subject,
+                            'section' => $schedule->section,
+                            'day_of_week' => $schedule->day_of_week,
+                            'time_start' => Carbon::parse($schedule->start_time)->format('H:i'),
+                            'time_end' => Carbon::parse($schedule->end_time)->format('H:i'),
+                            'room' => $schedule->room
+                        ];
+                    })
+                ]
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch monthly schedule',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    private function formatMonthlySchedule($schedules, Carbon $monthStart, Carbon $monthEnd, $calendarEvents)
+    {
+        $formattedSchedule = [];
+        $currentDate = $monthStart->copy();
+
+        // Group schedules by day of week for easy lookup
+        $schedulesByDay = $schedules->groupBy('day_of_week');
+
+        // Iterate through each day of the month
+        while ($currentDate->lte($monthEnd)) {
+            $dateKey = $currentDate->format('Y-m-d');
+            $dayOfWeek = $currentDate->format('l'); // Full day name (Monday, Tuesday, etc.)
+
+            // Get schedules for this day of the week
+            $daySchedules = $schedulesByDay->get($dayOfWeek, collect());
+
+            // Check for calendar event on this date
+            $calendarEvent = $calendarEvents->firstWhere('date', $dateKey);
+
+            // Map schedules to include exceptions
+            $schedulesWithExceptions = $daySchedules->map(function ($schedule) use ($dateKey) {
+                $exception = $schedule->scheduleExceptions->firstWhere('date', $dateKey);
+
+                $scheduleData = [
+                    'id' => $schedule->id,
+                    'subject' => $schedule->subject,
+                    'section' => $schedule->section,
+                    'time_start' => Carbon::parse($schedule->start_time)->format('H:i'),
+                    'time_end' => Carbon::parse($schedule->end_time)->format('H:i'),
+                    'room' => $schedule->room,
+                    'status' => $exception ? $exception->type : 'scheduled'
+                ];
+
+                if ($exception) {
+                    $scheduleData['exception'] = [
+                        'type' => $exception->type,
+                        'reason' => $exception->reason,
+                        'new_time' => $exception->type === 'rescheduled' ? [
+                            'start' => $exception->new_start_time,
+                            'end' => $exception->new_end_time
+                        ] : null,
+                        'new_room' => $exception->new_room
+                    ];
+                }
+
+                return $scheduleData;
+            });
+
+            // Determine if it's a class day
+            $isClassDay = true;
+            if ($calendarEvent && isset($calendarEvent->is_class_day)) {
+                $isClassDay = (bool) $calendarEvent->is_class_day;
+            }
+
+            // DEBUG: Log weekend check
+            if ($currentDate->day <= 7) { // Only log first week
+                \Log::info("Weekend Check", [
+                    'date' => $dateKey,
+                    'dayOfWeek' => $dayOfWeek,
+                    'dayOfWeekNum' => $currentDate->dayOfWeek,
+                    'isWeekend' => $currentDate->isWeekend(),
+                    'isClassDay_before' => $isClassDay
+                ]);
+            }
+
+            if ($currentDate->isWeekend()) {
+                $isClassDay = false;
+            }
+
+            // DEBUG: Log final result
+            if ($currentDate->day <= 7) { // Only log first week
+                \Log::info("Final isClassDay", [
+                    'date' => $dateKey,
+                    'isClassDay' => $isClassDay
+                ]);
+            }
+
+            $formattedSchedule[$dateKey] = [
+                'date' => $dateKey,
+                'day_of_week' => $dayOfWeek,
+                'classes' => $schedulesWithExceptions->values()->all(),
+                'calendar_event' => $calendarEvent ? [
+                    'id' => $calendarEvent->id,
+                    'title' => $calendarEvent->title,
+                    'description' => $calendarEvent->description ?? null,
+                    'is_class_day' => (bool) ($calendarEvent->is_class_day ?? true)
+                ] : null,
+                'is_class_day' => $isClassDay
+            ];
+
+            $currentDate->addDay();
+        }
+
+        return $formattedSchedule;
+    }
+
+    /**
+     * Get calendar events for a month
+     * 
+     * @param int $academicYearId
+     * @param Carbon $monthStart
+     * @param Carbon $monthEnd
+     * @return \Illuminate\Support\Collection
+     */
+    private function getMonthCalendarEvents($academicYearId, Carbon $monthStart, Carbon $monthEnd)
+    {
+        return DB::table('academic_calendars')
+            ->where('academic_year_id', $academicYearId)
+            ->whereBetween('date', [$monthStart->format('Y-m-d'), $monthEnd->format('Y-m-d')])
+            ->get();
     }
 }

@@ -4,8 +4,11 @@ namespace App\Http\Controllers\SuperAdmin;
 
 use App\Http\Controllers\Controller;
 use App\Models\AcademicYear;
+use App\Models\AcademicCalendar;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
+use Carbon\CarbonPeriod;
 
 class AcademicYearController extends Controller
 {
@@ -16,6 +19,13 @@ class AcademicYearController extends Controller
             ->orderBy('is_current', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate('20');
+
+        // Calculate school days for each academic year
+        $academicYears->getCollection()->transform(function ($year) {
+            $year->school_days_count = $this->calculateSchoolDays($year);
+            $year->total_days = $this->calculateTotalDays($year);
+            return $year;
+        });
 
         return response()->json([
             'success' => true,
@@ -44,6 +54,10 @@ class AcademicYearController extends Controller
             $academicYear = AcademicYear::create($validated);
 
             DB::commit();
+
+            // Add school days count to response
+            $academicYear->school_days_count = $this->calculateSchoolDays($academicYear);
+            $academicYear->total_days = $this->calculateTotalDays($academicYear);
 
             return response()->json([
                 'success' => true,
@@ -91,9 +105,14 @@ class AcademicYearController extends Controller
 
             DB::commit();
 
+            // Add school days count to response
+            $year->school_days_count = $this->calculateSchoolDays($year);
+            $year->total_days = $this->calculateTotalDays($year);
+
             return response()->json([
                 'success' => true,
-                'message' => 'Academic Year updated successfully'
+                'message' => 'Academic Year updated successfully',
+                'data' => $year
             ], 200);
         } catch (\Throwable $th) {
             DB::rollBack();
@@ -134,5 +153,59 @@ class AcademicYearController extends Controller
                 'error' => $th->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Calculate total days in academic year
+     */
+    private function calculateTotalDays($academicYear)
+    {
+        if (!$academicYear->start_date || !$academicYear->end_date) {
+            return 0;
+        }
+
+        $start = Carbon::parse($academicYear->start_date);
+        $end = Carbon::parse($academicYear->end_date);
+        
+        return $start->diffInDays($end) + 1;
+    }
+
+    /**
+     * Calculate school days excluding weekends and holidays
+     */
+    private function calculateSchoolDays($academicYear)
+    {
+        if (!$academicYear->start_date || !$academicYear->end_date) {
+            return 0;
+        }
+
+        $start = Carbon::parse($academicYear->start_date);
+        $end = Carbon::parse($academicYear->end_date);
+        
+        // Get all holidays/no class days from academic calendar
+        $nonClassDays = AcademicCalendar::where('academic_year_id', $academicYear->id)
+            ->where('is_class_day', false)
+            ->pluck('date')
+            ->map(fn($date) => Carbon::parse($date)->format('Y-m-d'))
+            ->toArray();
+
+        $schoolDays = 0;
+        $period = CarbonPeriod::create($start, $end);
+
+        foreach ($period as $date) {
+            // Skip weekends (Saturday = 6, Sunday = 0)
+            if ($date->dayOfWeek === Carbon::SATURDAY || $date->dayOfWeek === Carbon::SUNDAY) {
+                continue;
+            }
+
+            // Skip holidays/no class days
+            if (in_array($date->format('Y-m-d'), $nonClassDays)) {
+                continue;
+            }
+
+            $schoolDays++;
+        }
+
+        return $schoolDays;
     }
 }

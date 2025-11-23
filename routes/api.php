@@ -148,7 +148,7 @@ Route::middleware('auth:sanctum')->group(function () {
             Route::controller(EnrollmentController::class)->group(function () {
                 // Export routes must come before {id} routes to avoid route conflicts
                 Route::get('/enrollments/export-sf1-excel', 'exportSF1Excel');
-                
+
                 // Enrollments CRUD Operations
                 Route::get('/enrollments', 'index');
                 Route::post('/enrollments', 'store');
@@ -267,25 +267,32 @@ Route::middleware('auth:sanctum')->group(function () {
          */
         Route::controller(AttendanceController::class)->group(function () {
             // Schedule Management
-            Route::prefix('/schedule')->group(function () {
-                Route::get('/weekly', 'getWeeklySchedule');
-                Route::get('/attendance', 'getScheduleAttendance');
-                Route::get('/{scheduleId}/students', 'getScheduleStudents');
-                Route::get('/{scheduleId}/attendance-history', 'getAttendanceHistory');
+            Route::prefix('schedule')->group(function () {
+                // Monthly schedule route - MUST come BEFORE dynamic routes
+                Route::get('monthly', 'getMonthlySchedule');
+                Route::get('attendance', 'getScheduleAttendance');
+
+                // Dynamic routes with parameters come AFTER static routes
+                Route::get('{scheduleId}/students', 'getScheduleStudents');
+                Route::get('{scheduleId}/attendance-history', 'getAttendanceHistory');
             });
 
-            // Attendance Management
-            Route::prefix('/attendance')->group(function () {
-                Route::post('/update-individual', 'updateIndividualAttendance');
-                Route::post('/update-bulk', 'updateBulkAttendance');
-                Route::post('/update-all', 'updateAllStudentsAttendance');
-                Route::get('/export-sf2-excel', 'exportSF2Excel');
+            // Student routes
+            Route::prefix('student')->group(function () {
+                Route::get('{studentId}/tardiness-stats', 'getStudentTardinessStats');
+                Route::get('{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
             });
 
-            // Student-specific routes
-            Route::prefix('/student')->group(function () {
-                Route::get('/{studentId}/schedule/{scheduleId}/attendance-history', 'getStudentAttendanceHistory');
+            // Attendance operations
+            Route::prefix('attendance')->group(function () {
+                Route::post('update-individual', 'updateIndividualAttendance');
+                Route::post('update-bulk', 'updateBulkAttendance');
+                Route::post('update-all', 'updateAllStudentsAttendance');
+                Route::get('export-sf2-excel', 'exportSF2Excel');
             });
+
+            // Section attendance reports
+            Route::get('sections/{sectionId}/attendance/quarterly/pdf', 'downloadQuarterlyAttendancePDF');
         });
 
         /**
