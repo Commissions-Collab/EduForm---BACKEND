@@ -888,7 +888,7 @@ class AttendanceController extends Controller
      * @param Request $request
      * @return \Illuminate\Http\Response
      */
-    public function exportSF2Excel(Request $request): \Illuminate\Http\Response
+    public function exportSF2Excel(Request $request)
     {
         try {
             $validator = Validator::make($request->all(), [
@@ -929,13 +929,20 @@ class AttendanceController extends Controller
             $academicYear = AcademicYear::findOrFail($academicYearId);
 
             // Verify teacher has access to this section
-            $hasAccess = DB::table('section_advisors')
+            // Teacher can access if they are a section advisor OR have schedules for this section
+            $isSectionAdvisor = DB::table('section_advisors')
                 ->where('section_id', $sectionId)
                 ->where('teacher_id', $teacher->id)
                 ->where('academic_year_id', $academicYearId)
                 ->exists();
 
-            if (!$hasAccess) {
+            $hasSchedule = Schedule::where('section_id', $sectionId)
+                ->where('teacher_id', $teacher->id)
+                ->where('academic_year_id', $academicYearId)
+                ->where('is_active', true)
+                ->exists();
+
+            if (!$isSectionAdvisor && !$hasSchedule) {
                 return response()->json([
                     'success' => false,
                     'message' => 'Access denied to this section'
