@@ -1052,21 +1052,31 @@ class AttendanceController extends Controller
             $row += 2;
             // School Information
             $sheet->setCellValue('A' . $row, 'School ID:');
-            $sheet->setCellValue('B' . $row, ''); // Will be filled from database or config
+            $sheet->setCellValue('B' . $row, '308041');
+            $sheet->setCellValue('D' . $row, 'Region:');
+            $sheet->setCellValue('E' . $row, 'IV-A');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'School Name:');
+            $sheet->setCellValue('B' . $row, 'Castañas National Highschool');
+            $sheet->setCellValue('D' . $row, 'Division:');
+            $sheet->setCellValue('E' . $row, 'Quezon Province');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'District:');
+            $sheet->setCellValue('B' . $row, 'Sariaya East');
             $sheet->setCellValue('D' . $row, 'School Year:');
             $sheet->setCellValue('E' . $row, $academicYear->name);
 
             $row++;
             $sheet->setCellValue('A' . $row, 'Report for the Month of:');
             $sheet->setCellValue('B' . $row, $monthName . ' ' . $year);
-            $sheet->setCellValue('D' . $row, 'Name of School:');
-            $sheet->setCellValue('E' . $row, env('SCHOOL_NAME', 'Castañas National High School'));
+            $sheet->setCellValue('D' . $row, 'Grade Level:');
+            $sheet->setCellValue('E' . $row, $section->yearLevel->name ?? 'N/A');
 
             $row++;
-            $sheet->setCellValue('A' . $row, 'Grade Level:');
-            $sheet->setCellValue('B' . $row, $section->yearLevel->name ?? 'N/A');
-            $sheet->setCellValue('D' . $row, 'Section:');
-            $sheet->setCellValue('E' . $row, $section->name);
+            $sheet->setCellValue('A' . $row, 'Section:');
+            $sheet->setCellValue('B' . $row, $section->name);
 
             $row += 2;
 

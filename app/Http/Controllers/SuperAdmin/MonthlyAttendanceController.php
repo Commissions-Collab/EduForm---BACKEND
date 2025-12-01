@@ -482,19 +482,19 @@ class MonthlyAttendanceController extends Controller
             $row += 2;
             // School Information
             $sheet->setCellValue('A' . $row, 'School ID:');
-            $sheet->setCellValue('B' . $row, '');
+            $sheet->setCellValue('B' . $row, '308041');
             $sheet->setCellValue('D' . $row, 'Region:');
-            $sheet->setCellValue('E' . $row, '');
+            $sheet->setCellValue('E' . $row, 'IV-A');
 
             $row++;
             $sheet->setCellValue('A' . $row, 'School Name:');
-            $sheet->setCellValue('B' . $row, env('SCHOOL_NAME', 'AcadFlow School'));
+            $sheet->setCellValue('B' . $row, 'Castañas National Highschool');
             $sheet->setCellValue('D' . $row, 'Division:');
-            $sheet->setCellValue('E' . $row, '');
+            $sheet->setCellValue('E' . $row, 'Quezon Province');
 
             $row++;
             $sheet->setCellValue('A' . $row, 'District:');
-            $sheet->setCellValue('B' . $row, '');
+            $sheet->setCellValue('B' . $row, 'Sariaya East');
             $sheet->setCellValue('D' . $row, 'School Year:');
             $sheet->setCellValue('E' . $row, $academicYear->name);
 
@@ -515,7 +515,7 @@ class MonthlyAttendanceController extends Controller
             $sheet->setCellValue('C' . $row, 'NAME OF ADVISER');
             $sheet->mergeCells('C' . $row . ':C' . ($row + 1));
             $sheet->setCellValue('D' . $row, 'REGISTERED LEARNERS');
-            $sheet->mergeCells('D' . $row . ':F' . $row);
+            $sheet->mergeCells('D' . $row . ':F' . $row + 1);
             $sheet->setCellValue('G' . $row, 'ATTENDANCE');
             $sheet->mergeCells('G' . $row . ':L' . $row);
             $sheet->setCellValue('M' . $row, 'DROPPED OUT');
@@ -527,9 +527,6 @@ class MonthlyAttendanceController extends Controller
 
             // Second header row
             $row++;
-            $sheet->setCellValue('D' . $row, 'M');
-            $sheet->setCellValue('E' . $row, 'F');
-            $sheet->setCellValue('F' . $row, 'T');
             
             $sheet->setCellValue('G' . $row, 'Daily Average');
             $sheet->mergeCells('G' . $row . ':I' . $row);
@@ -559,6 +556,9 @@ class MonthlyAttendanceController extends Controller
 
             // Third header row - M/F/T sub-columns
             $row++;
+            $sheet->setCellValue('D' . $row, 'M');
+            $sheet->setCellValue('E' . $row, 'F');
+            $sheet->setCellValue('F' . $row, 'T');
             $sheet->setCellValue('G' . $row, 'M');
             $sheet->setCellValue('H' . $row, 'F');
             $sheet->setCellValue('I' . $row, 'T');

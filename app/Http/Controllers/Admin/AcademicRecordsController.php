@@ -578,22 +578,24 @@ class AcademicRecordsController extends Controller
 
             $row += 2;
             // School Information
+            $sheet->setCellValue('A' . $row, 'School ID:');
+            $sheet->setCellValue('B' . $row, '308041');
+            $sheet->setCellValue('E' . $row, 'Region:');
+            $sheet->setCellValue('F' . $row, 'IV-A');
+
+            $row++;
             $sheet->setCellValue('A' . $row, 'School Name:');
-            $sheet->setCellValue('B' . $row, env('SCHOOL_NAME', 'AcadFlow School'));
-            $sheet->setCellValue('D' . $row, 'School ID:');
-            $sheet->setCellValue('E' . $row, '');
+            $sheet->setCellValue('B' . $row, 'Castañas National Highschool');
+            $sheet->mergeCells('B' . $row . ':D' . $row);
+            $sheet->setCellValue('E' . $row, 'Division:');
+            $sheet->setCellValue('F' . $row, 'Quezon Province');
+            $sheet->mergeCells('F' . $row . ':G' . $row);
 
             $row++;
             $sheet->setCellValue('A' . $row, 'District:');
-            $sheet->setCellValue('B' . $row, '');
-            $sheet->setCellValue('D' . $row, 'Division:');
-            $sheet->setCellValue('E' . $row, '');
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'Region:');
-            $sheet->setCellValue('B' . $row, '');
-            $sheet->setCellValue('D' . $row, 'School Year:');
-            $sheet->setCellValue('E' . $row, $academicYear->name);
+            $sheet->setCellValue('B' . $row, 'Sariaya East');
+            $sheet->setCellValue('E' . $row, 'School Year:');
+            $sheet->setCellValue('F' . $row, $academicYear->name);
 
             $row++;
             $sheet->setCellValue('A' . $row, 'Grade Level:');

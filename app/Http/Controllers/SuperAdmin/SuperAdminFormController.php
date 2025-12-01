@@ -996,24 +996,23 @@ class SuperAdminFormController extends Controller
             $sheet->getStyle('A' . $row)->getFont()->setItalic(true)->setSize(10);
             $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
-            $row += 2;
             // School Information
-            $sheet->setCellValue('A' . $row, 'Region:');
-            $sheet->setCellValue('B' . $row, '');
-            $sheet->setCellValue('D' . $row, 'Division:');
-            $sheet->setCellValue('E' . $row, '');
-
-            $row++;
             $sheet->setCellValue('A' . $row, 'School ID:');
-            $sheet->setCellValue('B' . $row, '');
-            $sheet->setCellValue('D' . $row, 'School Year:');
-            $sheet->setCellValue('E' . $row, $academicYear->name);
+            $sheet->setCellValue('B' . $row, '308041');
+            $sheet->setCellValue('D' . $row, 'Region:');
+            $sheet->setCellValue('E' . $row, 'IV-A');
 
             $row++;
             $sheet->setCellValue('A' . $row, 'School Name:');
-            $sheet->setCellValue('B' . $row, env('SCHOOL_NAME', 'AcadFlow School'));
-            $sheet->setCellValue('D' . $row, 'District:');
-            $sheet->setCellValue('E' . $row, '');
+            $sheet->setCellValue('B' . $row, 'Castañas National Highschool');
+            $sheet->setCellValue('D' . $row, 'Division:');
+            $sheet->setCellValue('E' . $row, 'Quezon Province');
+
+            $row++;
+            $sheet->setCellValue('A' . $row, 'District:');
+            $sheet->setCellValue('B' . $row, 'Sariaya East');
+            $sheet->setCellValue('D' . $row, 'School Year:');
+            $sheet->setCellValue('E' . $row, $academicYear->name);
 
             $row++;
             $sheet->setCellValue('A' . $row, 'Curriculum:');
@@ -1025,80 +1024,19 @@ class SuperAdminFormController extends Controller
             $sheet->setCellValue('A' . $row, 'Section:');
             $sheet->setCellValue('B' . $row, $section->name);
 
-            $row += 2;
+            // Initialize Summary Stats
+            $summaryStats = [
+                'PROMOTED' => ['M' => 0, 'F' => 0],
+                'IRREGULAR' => ['M' => 0, 'F' => 0],
+                'RETAINED' => ['M' => 0, 'F' => 0],
+                'BEGINNING' => ['M' => 0, 'F' => 0],
+                'DEVELOPING' => ['M' => 0, 'F' => 0],
+                'APPROACHING' => ['M' => 0, 'F' => 0],
+                'PROFICIENT' => ['M' => 0, 'F' => 0],
+                'ADVANCED' => ['M' => 0, 'F' => 0],
+            ];
 
-            // Table Header
-            $headerRow = $row;
-            $sheet->setCellValue('A' . $headerRow, 'LRN');
-            $sheet->getStyle('A' . $headerRow)->getFont()->setBold(true);
-            $sheet->getStyle('A' . $headerRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                ->setVertical(Alignment::VERTICAL_CENTER);
-            $sheet->getStyle('A' . $headerRow)->getFill()
-                ->setFillType(Fill::FILL_SOLID)
-                ->getStartColor()->setRGB('D9E1F2');
-
-            $sheet->setCellValue('B' . $headerRow, 'LEARNER\'S NAME (Last Name, First Name, Middle Name)');
-            $sheet->getStyle('B' . $headerRow)->getFont()->setBold(true);
-            $sheet->getStyle('B' . $headerRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                ->setVertical(Alignment::VERTICAL_CENTER);
-            $sheet->getStyle('B' . $headerRow)->getFill()
-                ->setFillType(Fill::FILL_SOLID)
-                ->getStartColor()->setRGB('D9E1F2');
-
-            // Subject columns grouped by quarter
-            $col = 'C';
-            foreach ($quarters as $quarter) {
-                $quarterStartCol = $col;
-                foreach ($subjects as $subject) {
-                    $sheet->setCellValue($col . $headerRow, $subject->code ?? substr($subject->name, 0, 8));
-                    $sheet->getStyle($col . $headerRow)->getFont()->setBold(true)->setSize(9);
-                    $sheet->getStyle($col . $headerRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                        ->setVertical(Alignment::VERTICAL_CENTER);
-                    $sheet->getStyle($col . $headerRow)->getFill()
-                        ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('D9E1F2');
-                    $col++;
-                }
-            }
-
-            $finalAvgCol = $col;
-            $sheet->setCellValue($finalAvgCol . $headerRow, 'FINAL AVERAGE');
-            $sheet->getStyle($finalAvgCol . $headerRow)->getFont()->setBold(true);
-            $sheet->getStyle($finalAvgCol . $headerRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                ->setVertical(Alignment::VERTICAL_CENTER);
-            $sheet->getStyle($finalAvgCol . $headerRow)->getFill()
-                ->setFillType(Fill::FILL_SOLID)
-                ->getStartColor()->setRGB('D9E1F2');
-
-            $col++;
-            $actionCol = $col;
-            $sheet->setCellValue($actionCol . $headerRow, 'ACTION TAKEN');
-            $sheet->getStyle($actionCol . $headerRow)->getFont()->setBold(true);
-            $sheet->getStyle($actionCol . $headerRow)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)
-                ->setVertical(Alignment::VERTICAL_CENTER);
-            $sheet->getStyle($actionCol . $headerRow)->getFill()
-                ->setFillType(Fill::FILL_SOLID)
-                ->getStartColor()->setRGB('D9E1F2');
-
-            // Quarter labels row
-            $row++;
-            $col = 'C';
-            foreach ($quarters as $quarter) {
-                $quarterStartCol = $col;
-                $quarterEndCol = Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + count($subjects) - 1);
-                $sheet->mergeCells($quarterStartCol . $row . ':' . $quarterEndCol . $row);
-                $sheet->setCellValue($quarterStartCol . $row, $quarter->name);
-                $sheet->getStyle($quarterStartCol . $row)->getFont()->setBold(true)->setSize(9);
-                $sheet->getStyle($quarterStartCol . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->getStyle($quarterStartCol . $row)->getFill()
-                    ->setFillType(Fill::FILL_SOLID)
-                    ->getStartColor()->setRGB('E2EFDA');
-                $col = Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($quarterEndCol) + 1);
-            }
-
-            $row++;
-
-            // Student rows
+            // Calculate stats without writing student rows
             foreach ($students as $student) {
                 $studentData = $this->calculateStudentPromotion($student, $subjects, $quarters);
                 
@@ -1112,45 +1050,143 @@ class SuperAdminFormController extends Controller
                     $actionTaken = 'IRREGULAR';
                 }
 
-                $sheet->setCellValue('A' . $row, $student->lrn ?? '');
-                $sheet->setCellValue('B' . $row, trim($student->last_name . ', ' . $student->first_name . ' ' . ($student->middle_name ?? '')));
+                // Update Stats
+                $gender = strtoupper(substr($student->gender ?? 'M', 0, 1)); // Default to M if null, take first char
+                if ($gender !== 'M' && $gender !== 'F') $gender = 'M'; // Fallback
 
-                $col = 'C';
-                foreach ($quarters as $quarter) {
-                    foreach ($subjects as $subject) {
-                        $grade = $student->grades->where('subject_id', $subject->id)
-                            ->where('quarter_id', $quarter->id)
-                            ->first();
-                        
-                        $gradeValue = $grade ? number_format($grade->grade, 2) : '';
-                        $sheet->setCellValue($col . $row, $gradeValue);
-                        $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                        $col++;
-                    }
+                // Status Stats
+                if (isset($summaryStats[$actionTaken])) {
+                    $summaryStats[$actionTaken][$gender]++;
                 }
 
-                $sheet->setCellValue($finalAvgCol . $row, $finalAverage > 0 ? number_format($finalAverage, 2) : '');
-                $sheet->getStyle($finalAvgCol . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-                $sheet->setCellValue($actionCol . $row, $actionTaken);
-                $sheet->getStyle($actionCol . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-                $row++;
+                // Proficiency Stats
+                if ($finalAverage > 0) {
+                    if ($finalAverage >= 90) $summaryStats['ADVANCED'][$gender]++;
+                    elseif ($finalAverage >= 85) $summaryStats['PROFICIENT'][$gender]++;
+                    elseif ($finalAverage >= 80) $summaryStats['APPROACHING'][$gender]++;
+                    elseif ($finalAverage >= 75) $summaryStats['DEVELOPING'][$gender]++;
+                    else $summaryStats['BEGINNING'][$gender]++;
+                }
             }
 
-            // Apply borders
-            $lastDataRow = $row - 1;
-            $range = 'A' . ($headerRow - 1) . ':' . $actionCol . $lastDataRow;
-            $sheet->getStyle($range)->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000'],
-                    ],
-                ],
-            ]);
+            // SUMMARY TABLE
+            $row += 2;
+            $summaryStartRow = $row;
+            
+            // Header Row 1
+            $sheet->setCellValue('A' . $row, 'SUMMARY TABLE');
+            $sheet->mergeCells('A' . $row . ':A' . ($row + 1));
+            
+            $grades = [
+                'GRADE 1 / GRADE 7' => 'B',
+                'GRADE 2 / GRADE 8' => 'E',
+                'GRADE 3 / GRADE 9' => 'H',
+                'GRADE 4 / GRADE 10' => 'K',
+                'GRADE 5 / GRADE 11' => 'N',
+                'GRADE 6 / GRADE 12' => 'Q',
+                'TOTAL' => 'T'
+            ];
+
+            foreach ($grades as $label => $col) {
+                $sheet->setCellValue($col . $row, $label);
+                $endCol = Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 2);
+                $sheet->mergeCells($col . $row . ':' . $endCol . $row);
+                
+                // Header Row 2 (M/F/Total)
+                $sheet->setCellValue($col . ($row + 1), 'MALE');
+                $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 1) . ($row + 1), 'FEMALE');
+                $sheet->setCellValue($endCol . ($row + 1), 'TOTAL');
+            }
+            
+            // Style Headers
+            $sheet->getStyle('A' . $row . ':V' . ($row + 1))->getFont()->setBold(true)->setSize(9);
+            $sheet->getStyle('A' . $row . ':V' . ($row + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('A' . $row . ':V' . ($row + 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+            $row += 2;
+
+            // Determine current grade column
+            $currentGradeName = strtoupper($section->yearLevel->name ?? '');
+            $targetCol = null;
+            if (str_contains($currentGradeName, '7')) $targetCol = 'B';
+            elseif (str_contains($currentGradeName, '8')) $targetCol = 'E';
+            elseif (str_contains($currentGradeName, '9')) $targetCol = 'H';
+            elseif (str_contains($currentGradeName, '10')) $targetCol = 'K';
+            elseif (str_contains($currentGradeName, '11')) $targetCol = 'N';
+            elseif (str_contains($currentGradeName, '12')) $targetCol = 'Q';
+
+            // Helper to fill row
+            $fillSummaryRow = function($label, $statKey, $isHeader = false) use (&$sheet, &$row, $targetCol, $summaryStats) {
+                $sheet->setCellValue('A' . $row, $label);
+                if ($isHeader) {
+                     // Repeat M/F/Total headers
+                     $cols = ['B', 'E', 'H', 'K', 'N', 'Q', 'T'];
+                     foreach ($cols as $col) {
+                        $sheet->setCellValue($col . $row, 'MALE');
+                        $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 1) . $row, 'FEMALE');
+                        $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 2) . $row, 'TOTAL');
+                     }
+                     $sheet->getStyle('A' . $row . ':V' . $row)->getFont()->setBold(true)->setSize(9);
+                } else {
+                    if ($targetCol && $statKey) {
+                        $m = $summaryStats[$statKey]['M'];
+                        $f = $summaryStats[$statKey]['F'];
+                        $t = $m + $f;
+                        
+                        $sheet->setCellValue($targetCol . $row, $m);
+                        $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 1) . $row, $f);
+                        $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 2) . $row, $t);
+                        
+                        // Also fill Total Column (T)
+                        $sheet->setCellValue('T' . $row, $m);
+                        $sheet->setCellValue('U' . $row, $f);
+                        $sheet->setCellValue('V' . $row, $t);
+                    }
+                }
+                $sheet->getStyle('A' . $row . ':V' . $row)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle('A' . $row . ':V' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT); // Label left aligned
+                $row++;
+            };
+
+            $fillSummaryRow('PROMOTED', 'PROMOTED');
+            $fillSummaryRow('IRREGULAR', 'IRREGULAR');
+            $fillSummaryRow('RETAINED', 'RETAINED');
+            
+            $fillSummaryRow('LEVEL OF PROFICIENCY', null, true);
+            
+            $fillSummaryRow('BEGINNING (B: 74% and below)', 'BEGINNING');
+            $fillSummaryRow('DEVELOPING (D: 75%-79%)', 'DEVELOPING');
+            $fillSummaryRow('APPROACHING PROFICIENCY (AP: 80%-84%)', 'APPROACHING');
+            $fillSummaryRow('PROFICIENT (P: 85% -89%)', 'PROFICIENT');
+            $fillSummaryRow('ADVANCED (A: 90% and above)', 'ADVANCED');
+            
+            // Total Row
+            $sheet->setCellValue('A' . $row, 'TOTAL');
+            if ($targetCol) {
+                 $totalM = 0; $totalF = 0;
+                 foreach(['BEGINNING', 'DEVELOPING', 'APPROACHING', 'PROFICIENT', 'ADVANCED'] as $key) {
+                     $totalM += $summaryStats[$key]['M'];
+                     $totalF += $summaryStats[$key]['F'];
+                 }
+                 $totalT = $totalM + $totalF;
+                 
+                 $sheet->setCellValue($targetCol . $row, $totalM);
+                 $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 1) . $row, $totalF);
+                 $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 2) . $row, $totalT);
+                 
+                 $sheet->setCellValue('T' . $row, $totalM);
+                 $sheet->setCellValue('U' . $row, $totalF);
+                 $sheet->setCellValue('V' . $row, $totalT);
+            }
+            $sheet->getStyle('A' . $row . ':V' . $row)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle('A' . $row . ':V' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('A' . $row . ':V' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+            $row++;
 
             // Footer
-            $footerRow = $lastDataRow + 3;
+            $footerRow = $row + 1;
             $sheet->setCellValue('A' . $footerRow, 'School Form 6: Page ___ of ___');
 
             // Generate Excel file
