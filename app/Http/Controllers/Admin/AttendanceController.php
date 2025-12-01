@@ -1463,7 +1463,7 @@ class AttendanceController extends Controller
 
             $academicYearId = $request->get('academic_year_id');
             $sectionId = $request->get('section_id');
-            $quarterId = $request->get('quarter_id');
+            $quarterId = $request->get('quarter_id'); // Get quarter_id from request
 
             // Get current academic year or allow override via request
             $academicYear = $this->getCurrentAcademicYear($academicYearId);
@@ -1500,6 +1500,11 @@ class AttendanceController extends Controller
                 $schedulesQuery->where('section_id', $sectionId);
             }
 
+            // **FIX: Apply quarter filter if provided**
+            if ($quarterId) {
+                $schedulesQuery->where('quarter_id', $quarterId);
+            }
+
             $schedules = $schedulesQuery
                 ->orderBy('day_of_week')
                 ->orderBy('start_time')
@@ -1518,6 +1523,9 @@ class AttendanceController extends Controller
                         'id' => $academicYear->id,
                         'name' => $academicYear->name
                     ],
+                    'quarter' => $quarterId ? [
+                        'id' => $quarterId,
+                    ] : null,
                     'month_period' => [
                         'start' => $monthStart->format('Y-m-d'),
                         'end' => $monthEnd->format('Y-m-d'),
