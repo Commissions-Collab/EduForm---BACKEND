@@ -1206,6 +1206,18 @@ class AttendanceController extends Controller
                         }
 
                         $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+                        // Calculate Daily Totals
+                        if (!isset($dailyTotals[$dayKey])) {
+                            $dailyTotals[$dayKey] = ['male' => 0, 'female' => 0, 'total' => 0];
+                        }
+
+                        if ($attendance && ($attendance->status === 'present' || $attendance->status === 'late')) {
+                            $genderKey = $student->gender === 'female' ? 'female' : 'male';
+                            $dailyTotals[$dayKey][$genderKey]++;
+                            $dailyTotals[$dayKey]['total']++;
+                        }
+
                         $col++;
                     }
                 }
@@ -1240,6 +1252,22 @@ class AttendanceController extends Controller
                 ->setFillType(Fill::FILL_SOLID)
                 ->getStartColor()->setRGB('E2EFDA');
 
+            // Write Male Totals
+            $col = 'B';
+            foreach ($weeks as $week) {
+                foreach ($week as $day) {
+                    $dayKey = $day->format('Y-m-d');
+                    $val = $dailyTotals[$dayKey]['male'] ?? 0;
+                    $sheet->setCellValue($col . $row, $val > 0 ? $val : '');
+                    $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $col++;
+                }
+                // Skip remaining days in week
+                while (substr($col, -1) != 'F' && Coordinate::columnIndexFromString($col) <= Coordinate::columnIndexFromString('F')) {
+                    $col++;
+                }
+            }
+
             $row++;
             $sheet->setCellValue('A' . $row, 'FEMALE | TOTAL Per Day');
             $sheet->getStyle('A' . $row)->getFont()->setBold(true);
@@ -1247,12 +1275,42 @@ class AttendanceController extends Controller
                 ->setFillType(Fill::FILL_SOLID)
                 ->getStartColor()->setRGB('E2EFDA');
 
+            // Write Female Totals
+            $col = 'B';
+            foreach ($weeks as $week) {
+                foreach ($week as $day) {
+                    $dayKey = $day->format('Y-m-d');
+                    $val = $dailyTotals[$dayKey]['female'] ?? 0;
+                    $sheet->setCellValue($col . $row, $val > 0 ? $val : '');
+                    $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $col++;
+                }
+                while (substr($col, -1) != 'F' && Coordinate::columnIndexFromString($col) <= Coordinate::columnIndexFromString('F')) {
+                    $col++;
+                }
+            }
+
             $row++;
             $sheet->setCellValue('A' . $row, 'Combined TOTAL PER DAY');
             $sheet->getStyle('A' . $row)->getFont()->setBold(true);
             $sheet->getStyle('A' . $row)->getFill()
                 ->setFillType(Fill::FILL_SOLID)
                 ->getStartColor()->setRGB('E2EFDA');
+
+            // Write Combined Totals
+            $col = 'B';
+            foreach ($weeks as $week) {
+                foreach ($week as $day) {
+                    $dayKey = $day->format('Y-m-d');
+                    $val = $dailyTotals[$dayKey]['total'] ?? 0;
+                    $sheet->setCellValue($col . $row, $val > 0 ? $val : '');
+                    $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                    $col++;
+                }
+                while (substr($col, -1) != 'F' && Coordinate::columnIndexFromString($col) <= Coordinate::columnIndexFromString('F')) {
+                    $col++;
+                }
+            }
 
             // Apply borders to all data cells
             $lastDataRow = $row;
