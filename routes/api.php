@@ -231,9 +231,10 @@ Route::middleware('auth:sanctum')->group(function () {
                 Route::get('/sf5-sf6/filter-options', 'getFilterOptions');
                 Route::get('/sf5-sf6/statistics', 'getFormStatistics');
                 Route::post('/sf5-sf6/export-pdf', 'exportFormPDF');
-                Route::get('/sf5-sf6/preview/{type}/{sectionId}', 'previewForm');
+                // Export routes must come before parameterized routes to avoid route conflicts
                 Route::get('/sf5-sf6/export-sf5-excel', 'exportSF5Excel');
                 Route::get('/sf5-sf6/export-sf6-excel', 'exportSF6Excel');
+                Route::get('/sf5-sf6/preview/{type}/{sectionId}', 'previewForm');
             });
 
 

@@ -418,6 +418,7 @@ class EnrollmentController extends Controller
     /**
      * Export SF1 Excel - School Register
      * This exports student enrollment data in SF1 format
+     * Supports compiled report per year level and multi-grade tables
      */
     public function exportSF1Excel(Request $request)
     {
@@ -426,51 +427,18 @@ class EnrollmentController extends Controller
                 'academic_year_id' => 'required|exists:academic_years,id',
                 'section_id' => 'nullable|exists:sections,id',
                 'grade_level' => 'nullable|exists:year_levels,id',
+                'year_level_id' => 'nullable|exists:year_levels,id', // Alias for grade_level
             ]);
 
             $academicYearId = $request->get('academic_year_id');
             $sectionId = $request->get('section_id');
-            $gradeLevelId = $request->get('grade_level');
+            $gradeLevelId = $request->get('grade_level') ?? $request->get('year_level_id');
 
             $academicYear = AcademicYear::findOrFail($academicYearId);
-
-            // Get enrollments with filters
-            $enrollmentsQuery = Enrollment::with([
-                'student',
-                'yearLevel',
-                'section.yearLevel',
-                'academicYear'
-            ])
-                ->where('academic_year_id', $academicYearId)
-                ->where('enrollment_status', 'enrolled');
-
-            if ($sectionId) {
-                $enrollmentsQuery->where('section_id', $sectionId);
-            }
-
-            if ($gradeLevelId) {
-                $enrollmentsQuery->where('grade_level', $gradeLevelId);
-            }
-
-            $enrollments = $enrollmentsQuery->orderBy('section_id')
-                ->orderByRaw('(SELECT last_name FROM students WHERE students.id = enrollments.student_id)')
-                ->get();
-
-            // Group by section for organization
-            $enrollmentsBySection = $enrollments->groupBy('section_id');
-
-            // Get first section for header info (if section filter is applied)
-            $firstSection = $sectionId ? Section::with('yearLevel')->find($sectionId) : null;
-            $firstEnrollment = $enrollments->first();
-            $section = $firstSection ?: ($firstEnrollment ? $firstEnrollment->section : null);
-
-            // Calculate age as of 1st Friday of June (assuming current year or academic year start)
-            $currentYear = Carbon::now()->year;
-            $juneFirst = Carbon::create($currentYear, 6, 1);
-            $firstFridayJune = $juneFirst->copy();
-            while ($firstFridayJune->dayOfWeek !== Carbon::FRIDAY) {
-                $firstFridayJune->addDay();
-            }
+            
+            // Calculate age as of June 1st of the Academic Year
+            $startYear = (int) explode('-', $academicYear->name)[0];
+            $juneFirst = Carbon::create($startYear, 6, 1);
 
             // Create spreadsheet
             $spreadsheet = new Spreadsheet();
@@ -479,322 +447,50 @@ class EnrollmentController extends Controller
 
             // Set column widths
             $colWidths = [
-                'A' => 12, // LRN
-                'B' => 15, // Last Name
-                'C' => 15, // First Name
-                'D' => 15, // Middle Name
-                'E' => 6,  // Sex
-                'F' => 12, // Birth Date
-                'G' => 8,  // Age
-                'H' => 12, // Mother Tongue
-                'I' => 12, // IP (Ethnic Group)
-                'J' => 12, // Religion
-                'K' => 20, // House #/Street/Sitio/Purok
-                'L' => 15, // Barangay
-                'M' => 15, // Municipality/City
-                'N' => 15, // Province
-                'O' => 20, // Father's Last Name
-                'P' => 15, // Father's First Name
-                'Q' => 15, // Father's Middle Name
-                'R' => 20, // Mother's Last Name
-                'S' => 15, // Mother's First Name
-                'T' => 15, // Mother's Middle Name
-                'U' => 20, // Guardian Name
-                'V' => 12, // Guardian Relationship
-                'W' => 15, // Contact Number
-                'X' => 30, // Remarks
+                'A' => 12, 'B' => 15, 'C' => 15, 'D' => 15, 'E' => 6,  'F' => 12,
+                'G' => 8,  'H' => 12, 'I' => 12, 'J' => 12, 'K' => 20, 'L' => 15,
+                'M' => 15, 'N' => 15, 'O' => 20, 'P' => 15, 'Q' => 15, 'R' => 20,
+                'S' => 15, 'T' => 15, 'U' => 20, 'V' => 12, 'W' => 15, 'X' => 30,
             ];
 
             foreach ($colWidths as $col => $width) {
                 $sheet->getColumnDimension($col)->setWidth($width);
             }
 
-            // Header Section
             $row = 1;
-            $sheet->setCellValue('A' . $row, 'School Form 1 (SF 1) School Register');
-            $sheet->mergeCells('A' . $row . ':X' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
-            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, '(This replaces Form 1, Master List & STS Form 2-Family Background and Profile)');
-            $sheet->mergeCells('A' . $row . ':X' . $row);
-            $sheet->getStyle('A' . $row)->getFont()->setItalic(true)->setSize(10);
-            $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-
-            $row += 2;
-            // School Information
-            $sheet->setCellValue('A' . $row, 'School ID:');
-            $sheet->setCellValue('B' . $row, '308041');
-            $sheet->setCellValue('D' . $row, 'Region:');
-            $sheet->setCellValue('E' . $row, 'IV-A');
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'School Name:');
-            $sheet->setCellValue('B' . $row, 'Castañas National Highschool');
-            $sheet->setCellValue('D' . $row, 'Division:');
-            $sheet->setCellValue('E' . $row, 'Quezon Province');
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'District:');
-            $sheet->setCellValue('B' . $row, 'Sariaya East');
-            $sheet->setCellValue('D' . $row, 'School Year:');
-            $sheet->setCellValue('E' . $row, $academicYear->name);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'Grade Level:');
-            $sheet->setCellValue('B' . $row, $section ? ($section->yearLevel->name ?? '') : '');
-            $sheet->setCellValue('D' . $row, 'Section:');
-            $sheet->setCellValue('E' . $row, $section ? $section->name : '');
-
-            $row += 2;
-
-            // Table Header
-            $headerRow = $row;
             
-            // First header row - Main columns
-            $sheet->setCellValue('A' . $row, 'LRN');
-            $sheet->setCellValue('B' . $row, 'NAME');
-            $sheet->mergeCells('B' . $row . ':D' . $row);
-            $sheet->setCellValue('E' . $row, 'Sex');
-            $sheet->setCellValue('F' . $row, 'BIRTH DATE');
-            $sheet->setCellValue('G' . $row, 'AGE as of 1st Friday June');
-            $sheet->setCellValue('H' . $row, 'MOTHER TONGUE');
-            $sheet->setCellValue('I' . $row, 'IP (Ethnic Group)');
-            $sheet->setCellValue('J' . $row, 'RELIGION');
-            $sheet->setCellValue('K' . $row, 'ADDRESS');
-            $sheet->mergeCells('K' . $row . ':N' . $row);
-            $sheet->setCellValue('O' . $row, 'PARENTS');
-            $sheet->mergeCells('O' . $row . ':T' . $row);
-            $sheet->setCellValue('U' . $row, 'GUARDIAN (If not Parent)');
-            $sheet->mergeCells('U' . $row . ':V' . $row);
-            $sheet->setCellValue('W' . $row, 'Contact Number of Parent or Guardian');
-            $sheet->setCellValue('X' . $row, 'REMARKS');
-
-            // Second header row - Sub-columns
-            $row++;
-            $sheet->setCellValue('B' . $row, '(Last Name)');
-            $sheet->setCellValue('C' . $row, '(First Name)');
-            $sheet->setCellValue('D' . $row, '(Middle Name)');
-            $sheet->setCellValue('K' . $row, 'House #/Street/Sitio/Purok');
-            $sheet->setCellValue('L' . $row, 'Barangay');
-            $sheet->setCellValue('M' . $row, 'Municipality/City');
-            $sheet->setCellValue('N' . $row, 'Province');
-            $sheet->setCellValue('O' . $row, 'Father\'s Name');
-            $sheet->mergeCells('O' . $row . ':Q' . $row);
-            $sheet->setCellValue('R' . $row, 'Mother\'s Maiden Name');
-            $sheet->mergeCells('R' . $row . ':T' . $row);
-            $sheet->setCellValue('U' . $row, 'Name');
-            $sheet->setCellValue('V' . $row, 'Relationship');
-
-            // Third header row - Parent name sub-columns
-            $row++;
-            $sheet->setCellValue('O' . $row, '(Last Name)');
-            $sheet->setCellValue('P' . $row, '(First Name)');
-            $sheet->setCellValue('Q' . $row, '(Middle Name)');
-            $sheet->setCellValue('R' . $row, '(Last Name)');
-            $sheet->setCellValue('S' . $row, '(First Name)');
-            $sheet->setCellValue('T' . $row, '(Middle Name)');
-
-            // Apply header styling
-            $headerRange = 'A' . $headerRow . ':X' . $row;
-            $sheet->getStyle($headerRange)->applyFromArray([
-                'font' => ['bold' => true, 'size' => 9],
-                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'D9E1F2']
-                ],
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000']
-                    ]
-                ]
-            ]);
-
-            $row++;
-
-            // Data rows - Group by section if multiple sections
-            $totalMale = 0;
-            $totalFemale = 0;
-            $currentSectionId = null;
-
-            foreach ($enrollments as $enrollment) {
-                // Add section header if new section
-                if ($currentSectionId !== $enrollment->section_id && !$sectionId) {
-                    if ($currentSectionId !== null) {
-                        $row++; // Add spacing between sections
+            // Determine export mode: single section, single grade, or multi-grade
+            if ($sectionId) {
+                // Single section export
+                $section = Section::with('yearLevel')->findOrFail($sectionId);
+                $this->renderSF1GradeTable($sheet, $row, $academicYear, $section->yearLevel, $sectionId, $juneFirst);
+            } elseif ($gradeLevelId) {
+                // Single grade level export
+                $yearLevel = YearLevel::findOrFail($gradeLevelId);
+                $this->renderSF1GradeTable($sheet, $row, $academicYear, $yearLevel, null, $juneFirst);
+            } else {
+                // Multi-grade export (Grades 7, 8, 9, 10)
+                $gradeNumbers = [7, 8, 9, 10];
+                $firstTable = true;
+                
+                foreach ($gradeNumbers as $gradeNum) {
+                    $yearLevel = YearLevel::where('name', 'LIKE', "%{$gradeNum}%")
+                        ->orWhere('name', 'LIKE', "%Grade {$gradeNum}%")
+                        ->first();
+                    
+                    if ($yearLevel) {
+                        if (!$firstTable) {
+                            $row += 5; // Spacing between grade tables
+                        }
+                        $this->renderSF1GradeTable($sheet, $row, $academicYear, $yearLevel, null, $juneFirst);
+                        $firstTable = false;
                     }
-                    $currentSectionId = $enrollment->section_id;
-                    $sectionName = $enrollment->section ? $enrollment->section->name : 'N/A';
-                    $sheet->setCellValue('A' . $row, 'Section: ' . $sectionName);
-                    $sheet->getStyle('A' . $row)->getFont()->setBold(true);
-                    $sheet->getStyle('A' . $row)->getFill()
-                        ->setFillType(Fill::FILL_SOLID)
-                        ->getStartColor()->setRGB('E2EFDA');
-                    $row++;
                 }
-
-                $student = $enrollment->student;
-                if (!$student) continue;
-
-                // Calculate age as of 1st Friday of June
-                $age = $student->birthday ? $firstFridayJune->diffInYears($student->birthday) : '';
-
-                // Parse address (assuming it's stored as a single string)
-                $addressParts = $this->parseAddress($student->address ?? '');
-
-                // Parse parent/guardian name
-                $parentGuardianParts = $this->parseName($student->parent_guardian_name ?? '');
-
-                $sheet->setCellValue('A' . $row, $student->lrn ?? '');
-                $sheet->setCellValue('B' . $row, $student->last_name ?? '');
-                $sheet->setCellValue('C' . $row, $student->first_name ?? '');
-                $sheet->setCellValue('D' . $row, $student->middle_name ?? '');
-                $sheet->setCellValue('E' . $row, strtoupper(substr($student->gender ?? '', 0, 1)));
-                $sheet->setCellValue('F' . $row, $student->birthday ? $student->birthday->format('m/d/Y') : '');
-                $sheet->setCellValue('G' . $row, $age);
-                $sheet->setCellValue('H' . $row, ''); // Mother Tongue - not in database
-                $sheet->setCellValue('I' . $row, ''); // IP (Ethnic Group) - not in database
-                $sheet->setCellValue('J' . $row, ''); // Religion - not in database
-                $sheet->setCellValue('K' . $row, $addressParts['house_street'] ?? '');
-                $sheet->setCellValue('L' . $row, $addressParts['barangay'] ?? '');
-                $sheet->setCellValue('M' . $row, $addressParts['municipality'] ?? '');
-                $sheet->setCellValue('N' . $row, $addressParts['province'] ?? '');
-                $sheet->setCellValue('O' . $row, ''); // Father's Last Name - not in database
-                $sheet->setCellValue('P' . $row, ''); // Father's First Name - not in database
-                $sheet->setCellValue('Q' . $row, ''); // Father's Middle Name - not in database
-                $sheet->setCellValue('R' . $row, ''); // Mother's Last Name - not in database
-                $sheet->setCellValue('S' . $row, ''); // Mother's First Name - not in database
-                $sheet->setCellValue('T' . $row, ''); // Mother's Middle Name - not in database
-                $sheet->setCellValue('U' . $row, $parentGuardianParts['name'] ?? '');
-                $sheet->setCellValue('V' . $row, $student->relationship_to_student ?? '');
-                $sheet->setCellValue('W' . $row, $student->parent_guardian_phone ?? '');
-                $sheet->setCellValue('X' . $row, ''); // Remarks - can be filled based on enrollment status
-
-                // Count by gender
-                if (strtolower($student->gender ?? '') === 'male') {
-                    $totalMale++;
-                } elseif (strtolower($student->gender ?? '') === 'female') {
-                    $totalFemale++;
-                }
-
-                $row++;
             }
-
-            // Apply borders to data area
-            $dataRange = 'A' . $headerRow . ':X' . ($row - 1);
-            $sheet->getStyle($dataRange)->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000']
-                    ]
-                ]
-            ]);
-
-            // Footer - Legend for REMARKS
-            $row += 3;
-            $sheet->setCellValue('A' . $row, 'List and Code of Indicators under REMARKS column:');
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(11);
-            $row++;
-            
-            $legendData = [
-                ['Indicator', 'Code', 'Required Information'],
-                ['Transferred Out', 'T/O', 'Name of Public (P) Private (PR) School & Effectivity Date'],
-                ['Transferred IN', 'T/I', 'Name of Public (P) Private (PR) School & Effectivity Date'],
-                ['Dropped', 'DRP', 'Reason and Effectivity Date'],
-                ['Late Enrollment', 'LE', 'Reason (Enrollment beyond 1st Friday of June)'],
-                ['CCT', 'CCT', 'CCT Control/reference number & Effectivity Date'],
-                ['Balik-Aral', 'B/A', 'Name of school last attended & Year'],
-                ['Learner with Disability', 'LWD', 'Specify'],
-                ['Accelerated', 'ACL', 'Specify Level & Effectivity Data'],
-            ];
-
-            $legendStartRow = $row;
-            foreach ($legendData as $legendRow) {
-                $sheet->setCellValue('A' . $row, $legendRow[0]);
-                $sheet->setCellValue('B' . $row, $legendRow[1]);
-                $sheet->setCellValue('C' . $row, $legendRow[2]);
-                if ($row === $legendStartRow) {
-                    $sheet->getStyle('A' . $row . ':C' . $row)->getFont()->setBold(true);
-                }
-                $row++;
-            }
-
-            // Apply borders to legend
-            $legendRange = 'A' . $legendStartRow . ':C' . ($row - 1);
-            $sheet->getStyle($legendRange)->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000']
-                    ]
-                ]
-            ]);
-
-            // Summary Table
-            $row += 2;
-            $summaryStartRow = $row;
-            $sheet->setCellValue('A' . $row, 'REGISTERED');
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
-            $sheet->setCellValue('B' . $row, 'BoSY');
-            $sheet->getStyle('B' . $row)->getFont()->setBold(true);
-            $sheet->setCellValue('C' . $row, 'EoSY');
-            $sheet->getStyle('C' . $row)->getFont()->setBold(true);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'MALE');
-            $sheet->setCellValue('B' . $row, $totalMale);
-            $sheet->setCellValue('C' . $row, $totalMale);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'FEMALE');
-            $sheet->setCellValue('B' . $row, $totalFemale);
-            $sheet->setCellValue('C' . $row, $totalFemale);
-
-            $row++;
-            $sheet->setCellValue('A' . $row, 'TOTAL');
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
-            $sheet->setCellValue('B' . $row, $totalMale + $totalFemale);
-            $sheet->setCellValue('C' . $row, $totalMale + $totalFemale);
-
-            // Apply borders to summary
-            $summaryRange = 'A' . $summaryStartRow . ':C' . $row;
-            $sheet->getStyle($summaryRange)->applyFromArray([
-                'borders' => [
-                    'allBorders' => [
-                        'borderStyle' => Border::BORDER_THIN,
-                        'color' => ['rgb' => '000000']
-                    ]
-                ],
-                'fill' => [
-                    'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['rgb' => 'E2EFDA']
-                ]
-            ]);
-
-            // Signatures
-            $row += 3;
-            $sheet->setCellValue('A' . $row, 'Prepared by:');
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
-            $row += 2;
-            $sheet->setCellValue('A' . $row, '(Signature of Adviser over Printed Name)');
-            $sheet->setCellValue('B' . $row, 'BoSY Date:');
-            $sheet->setCellValue('C' . $row, 'EoSY Date:');
-
-            $row += 3;
-            $sheet->setCellValue('A' . $row, 'Certified Correct:');
-            $sheet->getStyle('A' . $row)->getFont()->setBold(true);
-            $row += 2;
-            $sheet->setCellValue('A' . $row, '(Signature of School Head over Printed Name)');
-            $sheet->setCellValue('B' . $row, 'BoSY Date:');
-            $sheet->setCellValue('C' . $row, 'EoSY Date:');
 
             // Generate Excel file
             $writer = new Xlsx($spreadsheet);
-            $fileName = 'SF1_School_Register_' . ($section ? $section->name . '_' : '') . $academicYear->name . '.xlsx';
+            $fileName = 'SF1_School_Register_' . $academicYear->name . '.xlsx';
 
             ob_start();
             $writer->save('php://output');
@@ -813,6 +509,262 @@ class EnrollmentController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Render a single grade table in SF1 format
+     */
+    private function renderSF1GradeTable($sheet, &$row, $academicYear, $yearLevel, $sectionId, $juneFirst)
+    {
+        // Header Section
+        $startRow = $row;
+        
+        $sheet->setCellValue('A' . $row, 'School Form 1 (SF 1) School Register');
+        $sheet->mergeCells('A' . $row . ':X' . $row);
+        $sheet->getStyle('A' . $row)->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        $row++;
+        $sheet->setCellValue('A' . $row, '(This replaces Form 1, Master List & STS Form 2-Family Background and Profile)');
+        $sheet->mergeCells('A' . $row . ':X' . $row);
+        $sheet->getStyle('A' . $row)->getFont()->setItalic(true)->setSize(10);
+        $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        $row += 2;
+        
+        // School Information
+        $sheet->setCellValue('A' . $row, 'School ID:');
+        $sheet->setCellValue('B' . $row, '308041');
+        $sheet->setCellValue('D' . $row, 'Region:');
+        $sheet->setCellValue('E' . $row, 'IV-A');
+
+        $row++;
+        $sheet->setCellValue('A' . $row, 'School Name:');
+        $sheet->setCellValue('B' . $row, 'Castañas National Highschool');
+        $sheet->setCellValue('D' . $row, 'Division:');
+        $sheet->setCellValue('E' . $row, 'Quezon Province');
+
+        $row++;
+        $sheet->setCellValue('A' . $row, 'District:');
+        $sheet->setCellValue('B' . $row, 'Sariaya East');
+        $sheet->setCellValue('D' . $row, 'School Year:');
+        $sheet->setCellValue('E' . $row, $academicYear->name);
+
+        $row++;
+        $sheet->setCellValue('A' . $row, 'Grade Level:');
+        $sheet->setCellValue('B' . $row, $yearLevel->name);
+        $sheet->setCellValue('D' . $row, 'Section:');
+        
+        if ($sectionId) {
+            $section = Section::find($sectionId);
+            $sheet->setCellValue('E' . $row, $section ? $section->name : '');
+        } else {
+            $sheet->setCellValue('E' . $row, 'All Sections (Compiled)');
+        }
+
+        $row += 2;
+
+        // Table Header
+        $headerRow = $row;
+        
+        // First header row
+        $sheet->setCellValue('A' . $row, 'LRN');
+        $sheet->setCellValue('B' . $row, 'NAME');
+        $sheet->mergeCells('B' . $row . ':D' . $row);
+        $sheet->setCellValue('E' . $row, 'Sex');
+        $sheet->setCellValue('F' . $row, 'BIRTH DATE');
+        $sheet->setCellValue('G' . $row, 'AGE as of June 1st');
+        $sheet->setCellValue('H' . $row, 'MOTHER TONGUE');
+        $sheet->setCellValue('I' . $row, 'IP (Ethnic Group)');
+        $sheet->setCellValue('J' . $row, 'RELIGION');
+        $sheet->setCellValue('K' . $row, 'ADDRESS');
+        $sheet->mergeCells('K' . $row . ':N' . $row);
+        $sheet->setCellValue('O' . $row, 'PARENTS');
+        $sheet->mergeCells('O' . $row . ':T' . $row);
+        $sheet->setCellValue('U' . $row, 'GUARDIAN (If not Parent)');
+        $sheet->mergeCells('U' . $row . ':V' . $row);
+        $sheet->setCellValue('W' . $row, 'Contact Number of Parent or Guardian');
+        $sheet->setCellValue('X' . $row, 'REMARKS');
+
+        // Second header row
+        $row++;
+        $sheet->setCellValue('B' . $row, '(Last Name)');
+        $sheet->setCellValue('C' . $row, '(First Name)');
+        $sheet->setCellValue('D' . $row, '(Middle Name)');
+        $sheet->setCellValue('K' . $row, 'House #/Street/Sitio/Purok');
+        $sheet->setCellValue('L' . $row, 'Barangay');
+        $sheet->setCellValue('M' . $row, 'Municipality/City');
+        $sheet->setCellValue('N' . $row, 'Province');
+        $sheet->setCellValue('O' . $row, 'Father\'s Name');
+        $sheet->mergeCells('O' . $row . ':Q' . $row);
+        $sheet->setCellValue('R' . $row, 'Mother\'s Maiden Name');
+        $sheet->mergeCells('R' . $row . ':T' . $row);
+        $sheet->setCellValue('U' . $row, 'Name');
+        $sheet->setCellValue('V' . $row, 'Relationship');
+
+        // Third header row
+        $row++;
+        $sheet->setCellValue('O' . $row, '(Last Name)');
+        $sheet->setCellValue('P' . $row, '(First Name)');
+        $sheet->setCellValue('Q' . $row, '(Middle Name)');
+        $sheet->setCellValue('R' . $row, '(Last Name)');
+        $sheet->setCellValue('S' . $row, '(First Name)');
+        $sheet->setCellValue('T' . $row, '(Middle Name)');
+
+        // Apply header styling
+        $headerRange = 'A' . $headerRow . ':X' . $row;
+        $sheet->getStyle($headerRange)->applyFromArray([
+            'font' => ['bold' => true, 'size' => 9],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER, 'vertical' => Alignment::VERTICAL_CENTER, 'wrapText' => true],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'D9E1F2']
+            ],
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['rgb' => '000000']
+                ]
+            ]
+        ]);
+
+        $row++;
+
+        // Get enrollments for this grade
+        $enrollmentsQuery = Enrollment::with(['student', 'section'])
+            ->where('academic_year_id', $academicYear->id)
+            ->where('grade_level', $yearLevel->id)
+            ->where('enrollment_status', 'enrolled');
+
+        if ($sectionId) {
+            $enrollmentsQuery->where('section_id', $sectionId);
+        }
+
+        $enrollments = $enrollmentsQuery->orderBy('section_id')
+            ->orderByRaw('(SELECT last_name FROM students WHERE students.id = enrollments.student_id)')
+            ->get();
+
+        // Data rows
+        $totalMale = 0;
+        $totalFemale = 0;
+        $currentSectionId = null;
+
+        foreach ($enrollments as $enrollment) {
+            // Add section header if new section (only when not filtering by section)
+            if (!$sectionId && $currentSectionId !== $enrollment->section_id) {
+                if ($currentSectionId !== null) {
+                    $row++; // Add spacing between sections
+                }
+                $currentSectionId = $enrollment->section_id;
+                $sectionName = $enrollment->section ? $enrollment->section->name : 'N/A';
+                $sheet->setCellValue('A' . $row, 'Section: ' . $sectionName);
+                $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+                $sheet->getStyle('A' . $row)->getFill()
+                    ->setFillType(Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('E2EFDA');
+                $row++;
+            }
+
+            $student = $enrollment->student;
+            if (!$student) continue;
+
+            // Calculate age
+            $age = $student->birthday ? abs($juneFirst->year - $student->birthday->year) : '';
+
+            // Parse address
+            $addressParts = $this->parseAddress($student->address ?? '');
+            $parentGuardianParts = $this->parseName($student->parent_guardian_name ?? '');
+
+            $sheet->setCellValue('A' . $row, $student->lrn ?? '');
+            $sheet->setCellValue('B' . $row, $student->last_name ?? '');
+            $sheet->setCellValue('C' . $row, $student->first_name ?? '');
+            $sheet->setCellValue('D' . $row, $student->middle_name ?? '');
+            $sheet->setCellValue('E' . $row, strtoupper(substr($student->gender ?? '', 0, 1)));
+            $sheet->setCellValue('F' . $row, $student->birthday ? $student->birthday->format('m/d/Y') : '');
+            $sheet->setCellValue('G' . $row, $age);
+            $sheet->setCellValue('H' . $row, '');
+            $sheet->setCellValue('I' . $row, '');
+            $sheet->setCellValue('J' . $row, '');
+            $sheet->setCellValue('K' . $row, $addressParts['house_street'] ?? '');
+            $sheet->setCellValue('L' . $row, $addressParts['barangay'] ?? '');
+            $sheet->setCellValue('M' . $row, $addressParts['municipality'] ?? '');
+            $sheet->setCellValue('N' . $row, $addressParts['province'] ?? '');
+            $sheet->setCellValue('O' . $row, '');
+            $sheet->setCellValue('P' . $row, '');
+            $sheet->setCellValue('Q' . $row, '');
+            $sheet->setCellValue('R' . $row, '');
+            $sheet->setCellValue('S' . $row, '');
+            $sheet->setCellValue('T' . $row, '');
+            $sheet->setCellValue('U' . $row, $parentGuardianParts['name'] ?? '');
+            $sheet->setCellValue('V' . $row, $student->relationship_to_student ?? '');
+            $sheet->setCellValue('W' . $row, $student->parent_guardian_phone ?? '');
+            $sheet->setCellValue('X' . $row, '');
+
+            // Count by gender
+            if (strtolower($student->gender ?? '') === 'male') {
+                $totalMale++;
+            } elseif (strtolower($student->gender ?? '') === 'female') {
+                $totalFemale++;
+            }
+
+            $row++;
+        }
+
+        // Apply borders to data area
+        if ($enrollments->count() > 0) {
+            $dataRange = 'A' . $headerRow . ':X' . ($row - 1);
+            $sheet->getStyle($dataRange)->applyFromArray([
+                'borders' => [
+                    'allBorders' => [
+                        'borderStyle' => Border::BORDER_THIN,
+                        'color' => ['rgb' => '000000']
+                    ]
+                ]
+            ]);
+        }
+
+        // Summary Table
+        $row += 2;
+        $summaryStartRow = $row;
+        $sheet->setCellValue('A' . $row, 'REGISTERED');
+        $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+        $sheet->setCellValue('B' . $row, 'BoSY');
+        $sheet->getStyle('B' . $row)->getFont()->setBold(true);
+        $sheet->setCellValue('C' . $row, 'EoSY');
+        $sheet->getStyle('C' . $row)->getFont()->setBold(true);
+
+        $row++;
+        $sheet->setCellValue('A' . $row, 'MALE');
+        $sheet->setCellValue('B' . $row, $totalMale);
+        $sheet->setCellValue('C' . $row, $totalMale);
+
+        $row++;
+        $sheet->setCellValue('A' . $row, 'FEMALE');
+        $sheet->setCellValue('B' . $row, $totalFemale);
+        $sheet->setCellValue('C' . $row, $totalFemale);
+
+        $row++;
+        $sheet->setCellValue('A' . $row, 'TOTAL');
+        $sheet->getStyle('A' . $row)->getFont()->setBold(true);
+        $sheet->setCellValue('B' . $row, $totalMale + $totalFemale);
+        $sheet->setCellValue('C' . $row, $totalMale + $totalFemale);
+
+        // Apply styling to summary
+        $summaryRange = 'A' . $summaryStartRow . ':C' . $row;
+        $sheet->getStyle($summaryRange)->applyFromArray([
+            'borders' => [
+                'allBorders' => [
+                    'borderStyle' => Border::BORDER_THIN,
+                    'color' => ['rgb' => '000000']
+                ]
+            ],
+            'fill' => [
+                'fillType' => Fill::FILL_SOLID,
+                'startColor' => ['rgb' => 'E2EFDA']
+            ]
+        ]);
+
+        $row++;
     }
 
     /**

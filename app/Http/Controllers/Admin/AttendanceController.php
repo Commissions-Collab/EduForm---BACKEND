@@ -1179,24 +1179,30 @@ class AttendanceController extends Controller
                 foreach ($weeks as $week) {
                     foreach ($week as $day) {
                         $dayKey = $day->format('Y-m-d');
-                        $attendance = $attendances[$student->id][$dayKey] ?? null;
+                        
+                        // Check if date is in the future (strictly greater than today)
+                        if ($day->isFuture()) {
+                            $sheet->setCellValue($col . $row, '');
+                        } else {
+                            $attendance = $attendances[$student->id][$dayKey] ?? null;
 
-                        if ($attendance) {
-                            // Get status from attendance record
-                            $status = is_object($attendance) ? ($attendance->status ?? 'present') : 'present';
-                            if ($status === 'absent') {
-                                $sheet->setCellValue($col . $row, 'x');
-                                $absentCount++;
-                            } elseif ($status === 'late') {
-                                // Half-shaded for late (upper half)
-                                $sheet->setCellValue($col . $row, 'T');
-                                $tardyCount++;
+                            if ($attendance) {
+                                // Get status from attendance record
+                                $status = is_object($attendance) ? ($attendance->status ?? 'present') : 'present';
+                                if ($status === 'absent') {
+                                    $sheet->setCellValue($col . $row, 'X');
+                                    $absentCount++;
+                                } elseif ($status === 'late') {
+                                    // Half-shaded for late (upper half)
+                                    $sheet->setCellValue($col . $row, 'T');
+                                    $tardyCount++;
+                                } else {
+                                    // Present - show checkmark
+                                    $sheet->setCellValue($col . $row, '✓');
+                                }
                             } else {
-                                // Present (blank)
                                 $sheet->setCellValue($col . $row, '');
                             }
-                        } else {
-                            $sheet->setCellValue($col . $row, '');
                         }
 
                         $sheet->getStyle($col . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
@@ -1292,7 +1298,7 @@ class AttendanceController extends Controller
             $sheet->setCellValue('A' . $codesRow, '1. CODES FOR CHECKING ATTENDANCE:');
             $sheet->getStyle('A' . $codesRow)->getFont()->setBold(true)->setSize(11);
             $codesRow++;
-            $sheet->setCellValue('A' . $codesRow, '(blank)-Present; (x)- Absent; Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)');
+            $sheet->setCellValue('A' . $codesRow, '(✓)-Present; (X)- Absent; Tardy (half shaded= Upper for Late Commer, Lower for Cutting Classes)');
             $codesRow += 2;
             $sheet->setCellValue('A' . $codesRow, '2. REASONS/CAUSES FOR DROPPING OUT:');
             $sheet->getStyle('A' . $codesRow)->getFont()->setBold(true)->setSize(11);

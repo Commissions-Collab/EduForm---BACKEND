@@ -363,8 +363,8 @@ class SuperAdminFormController extends Controller
             ? round(array_sum($validSubjectAverages) / count($validSubjectAverages), 2)
             : null;
 
-        $totalDays = $student->attendances->count();
-        $presentDays = $student->attendances->where('status', 'present')->count();
+        $totalDays = $student->attendances_count ?? $student->attendances->count();
+        $presentDays = $student->present_attendances_count ?? $student->attendances->where('status', 'present')->count();
         $attendancePercentage = $totalDays > 0 ? round(($presentDays / $totalDays) * 100, 2) : 0;
 
         $promotionStatus = 'Incomplete';
@@ -470,22 +470,68 @@ class SuperAdminFormController extends Controller
     }
 
     /**
-     * Export SF5 Excel for SuperAdmin
+     * Export SF5 Excel for SuperAdmin - Compiled per Year Level
+     * Supports both section_id (single section) and year_level_id (all sections in year level)
      */
     public function exportSF5Excel(Request $request)
     {
         try {
+            // Accept both section_id and year_level_id for backward compatibility
             $request->validate([
-                'section_id' => 'required|exists:sections,id',
                 'academic_year_id' => 'required|exists:academic_years,id',
             ]);
 
-            $sectionId = $request->get('section_id');
             $academicYearId = $request->get('academic_year_id');
-
-            // Get section and academic year
-            $section = Section::with(['yearLevel', 'academicYear'])->findOrFail($sectionId);
             $academicYear = AcademicYear::findOrFail($academicYearId);
+
+            $yearLevel = null;
+            $sections = collect();
+            $isCompiled = false;
+
+            // Check if year_level_id is provided (new method - compiled report)
+            if ($request->has('year_level_id')) {
+                $request->validate([
+                    'year_level_id' => 'required|exists:year_levels,id',
+                ]);
+
+                $yearLevelId = $request->get('year_level_id');
+                $yearLevel = \App\Models\YearLevel::findOrFail($yearLevelId);
+
+                // Get all sections for this year level
+                $sections = Section::where('year_level_id', $yearLevelId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->get();
+
+                $isCompiled = true;
+            }
+            // Check if section_id is provided (old method - single section)
+            elseif ($request->has('section_id')) {
+                $request->validate([
+                    'section_id' => 'required|exists:sections,id',
+                ]);
+
+                $sectionId = $request->get('section_id');
+                $section = Section::with(['yearLevel'])->findOrFail($sectionId);
+                $yearLevel = $section->yearLevel;
+
+                // Get only this section
+                $sections = collect([$section]);
+                $isCompiled = false;
+            } else {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Either section_id or year_level_id is required'
+                ], 422);
+            }
+
+            if ($sections->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No sections found'
+                ], 404);
+            }
+
+            $sectionIds = $sections->pluck('id')->toArray();
 
             // Get quarters and subjects
             $quarters = Quarter::where('academic_year_id', $academicYearId)
@@ -496,9 +542,9 @@ class SuperAdminFormController extends Controller
                 $query->where('academic_year_id', $academicYearId);
             })->get();
 
-            // Get enrolled students
-            $students = Student::whereHas('enrollments', function ($query) use ($sectionId, $academicYearId) {
-                $query->where('section_id', $sectionId)
+            // Get enrolled students from ALL sections in this year level
+            $students = Student::whereHas('enrollments', function ($query) use ($sectionIds, $academicYearId) {
+                $query->whereIn('section_id', $sectionIds)
                     ->where('academic_year_id', $academicYearId)
                     ->where('enrollment_status', 'enrolled');
             })
@@ -512,6 +558,9 @@ class SuperAdminFormController extends Controller
                         $query->whereHas('academicYear', function ($q) use ($academicYearId) {
                             $q->where('id', $academicYearId);
                         });
+                    },
+                    'enrollments' => function ($query) use ($academicYearId) {
+                        $query->where('academic_year_id', $academicYearId);
                     }
                 ])
                 ->orderBy('last_name')
@@ -639,11 +688,11 @@ class SuperAdminFormController extends Controller
             $sheet->setCellValue('A' . $row, 'Curriculum:');
             $sheet->setCellValue('B' . $row, 'K to 12');
             $sheet->setCellValue('D' . $row, 'Grade Level:');
-            $sheet->setCellValue('E' . $row, $section->yearLevel->name ?? 'N/A');
+            $sheet->setCellValue('E' . $row, $yearLevel->name ?? 'N/A');
 
             $row++;
             $sheet->setCellValue('A' . $row, 'Section:');
-            $sheet->setCellValue('B' . $row, $section->name);
+            $sheet->setCellValue('B' . $row, $isCompiled ? 'All Sections (Compiled)' : $sections->first()->name);
 
             $row += 2;
 
@@ -883,7 +932,8 @@ class SuperAdminFormController extends Controller
 
             // Generate Excel file
             $writer = new Xlsx($spreadsheet);
-            $fileName = 'SF5_Promotion_Report_' . $section->name . '_' . $academicYear->name . '.xlsx';
+            $sectionName = $isCompiled ? $yearLevel->name : $sections->first()->name;
+            $fileName = 'SF5_Promotion_Report_' . $sectionName . '_' . $academicYear->name . '.xlsx';
 
             ob_start();
             $writer->save('php://output');
@@ -905,23 +955,79 @@ class SuperAdminFormController extends Controller
     }
 
     /**
-     * Export SF6 Excel for SuperAdmin
+     * Export SF6 Excel for SuperAdmin - Compiled per Year Level or Overall Academic Year
      * SF6 is Learner Progress Report showing subject grades per quarter
+     * Supports section_id (single section), year_level_id (all sections in year level), or overall academic year
      */
     public function exportSF6Excel(Request $request)
     {
+        // Increase memory and time limits for large exports
+        ini_set('memory_limit', '-1');
+        set_time_limit(0);
+        
         try {
+            // Accept both section_id and year_level_id for backward compatibility, or export for entire academic year
             $request->validate([
-                'section_id' => 'required|exists:sections,id',
                 'academic_year_id' => 'required|exists:academic_years,id',
             ]);
 
-            $sectionId = $request->get('section_id');
             $academicYearId = $request->get('academic_year_id');
-
-            // Get section and academic year
-            $section = Section::with(['yearLevel', 'academicYear'])->findOrFail($sectionId);
             $academicYear = AcademicYear::findOrFail($academicYearId);
+
+            $yearLevel = null;
+            $sections = collect();
+            $isCompiled = false;
+            $isOverallAcademicYear = false;
+
+            // Get section_id and year_level_id values, checking if they're actually set and not empty
+            $sectionId = $request->input('section_id');
+            $yearLevelId = $request->input('year_level_id');
+            
+            // Normalize values - convert empty strings, null, '0', or 0 to null
+            $sectionId = ($sectionId && $sectionId !== '' && $sectionId !== '0' && $sectionId !== 0) ? $sectionId : null;
+            $yearLevelId = ($yearLevelId && $yearLevelId !== '' && $yearLevelId !== '0' && $yearLevelId !== 0) ? $yearLevelId : null;
+            
+            // Check if year_level_id is provided (new method - compiled report)
+            if ($yearLevelId) {
+                $request->validate([
+                    'year_level_id' => 'required|exists:year_levels,id',
+                ]);
+
+                $yearLevel = \App\Models\YearLevel::findOrFail($yearLevelId);
+
+                // Get all sections for this year level
+                $sections = Section::where('year_level_id', $yearLevelId)
+                    ->where('academic_year_id', $academicYearId)
+                    ->get();
+
+                $isCompiled = true;
+            }
+            // Check if section_id is provided (old method - single section)
+            elseif ($sectionId) {
+                $request->validate([
+                    'section_id' => 'required|exists:sections,id',
+                ]);
+
+                $section = Section::with(['yearLevel'])->findOrFail($sectionId);
+                $yearLevel = $section->yearLevel;
+
+                // Get only this section
+                $sections = collect([$section]);
+                $isCompiled = false;
+            } else {
+                // Export for entire academic year - all sections, all year levels
+                $isOverallAcademicYear = true;
+                $sections = Section::where('academic_year_id', $academicYearId)->get();
+            }
+
+            if ($sections->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No sections found'
+                ], 404);
+            }
+
+            $sectionIds = $sections->pluck('id')->toArray();
 
             // Get quarters and subjects
             $quarters = Quarter::where('academic_year_id', $academicYearId)
@@ -932,27 +1038,42 @@ class SuperAdminFormController extends Controller
                 $query->where('academic_year_id', $academicYearId);
             })->orderBy('name')->get();
 
-            // Get enrolled students
-            $students = Student::whereHas('enrollments', function ($query) use ($sectionId, $academicYearId) {
-                $query->where('section_id', $sectionId)
+            if ($subjects->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No subjects found for this academic year'
+                ], 404);
+            }
+
+            // Get enrolled students from ALL sections (or all sections for overall academic year)
+            // Ensure sectionIds is not empty before querying
+            if (empty($sectionIds)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No valid sections found'
+                ], 404);
+            }
+
+            $studentQuery = Student::whereHas('enrollments', function ($query) use ($sectionIds, $academicYearId) {
+                $query->whereIn('section_id', $sectionIds)
                     ->where('academic_year_id', $academicYearId)
                     ->where('enrollment_status', 'enrolled');
-            })
-                ->with([
-                    'grades' => function ($query) use ($academicYearId) {
-                        $query->whereHas('quarter', function ($q) use ($academicYearId) {
-                            $q->where('academic_year_id', $academicYearId);
-                        });
-                    },
-                    'attendances' => function ($query) use ($academicYearId) {
-                        $query->whereHas('academicYear', function ($q) use ($academicYearId) {
-                            $q->where('id', $academicYearId);
-                        });
-                    }
-                ])
-                ->orderBy('last_name')
-                ->orderBy('first_name')
-                ->get();
+            });
+
+            // Validate we have data to export
+            if ($studentQuery->count() === 0) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No enrolled students found for the selected criteria'
+                ], 404);
+            }
+
+            if ($quarters->isEmpty()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'No quarters found for this academic year'
+                ], 404);
+            }
 
             // Create spreadsheet
             $spreadsheet = new Spreadsheet();
@@ -997,6 +1118,15 @@ class SuperAdminFormController extends Controller
             $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
 
             // School Information
+            // For overall academic year: show school info but exclude Grade Level and Section
+            // For specific section/year level: show all school info including Grade Level and Section
+            $requestSectionId = $request->input('section_id');
+            $requestYearLevelId = $request->input('year_level_id');
+            $hasValidSection = ($requestSectionId && $requestSectionId !== '' && $requestSectionId !== '0' && $requestSectionId !== 0);
+            $hasValidYearLevel = ($requestYearLevelId && $requestYearLevelId !== '' && $requestYearLevelId !== '0' && $requestYearLevelId !== 0);
+            
+            // Always show school information (for both overall and specific exports)
+            $row++;
             $sheet->setCellValue('A' . $row, 'School ID:');
             $sheet->setCellValue('B' . $row, '308041');
             $sheet->setCellValue('D' . $row, 'Region:');
@@ -1017,57 +1147,124 @@ class SuperAdminFormController extends Controller
             $row++;
             $sheet->setCellValue('A' . $row, 'Curriculum:');
             $sheet->setCellValue('B' . $row, 'K to 12');
-            $sheet->setCellValue('D' . $row, 'Grade Level:');
-            $sheet->setCellValue('E' . $row, $section->yearLevel->name ?? 'N/A');
+            
+            // Only show Grade Level and Section when NOT exporting overall academic year
+            if (!$isOverallAcademicYear && ($hasValidSection || $hasValidYearLevel)) {
+                $sheet->setCellValue('D' . $row, 'Grade Level:');
+                $sheet->setCellValue('E' . $row, $yearLevel->name ?? 'N/A');
 
-            $row++;
-            $sheet->setCellValue('A' . $row, 'Section:');
-            $sheet->setCellValue('B' . $row, $section->name);
+                $row++;
+                $sheet->setCellValue('A' . $row, 'Section:');
+                $sheet->setCellValue('B' . $row, $isCompiled ? 'All Sections (Compiled)' : $sections->first()->name);
+            }
 
-            // Initialize Summary Stats
+            // Initialize Summary Stats - support per grade level when exporting overall academic year
             $summaryStats = [
-                'PROMOTED' => ['M' => 0, 'F' => 0],
-                'IRREGULAR' => ['M' => 0, 'F' => 0],
-                'RETAINED' => ['M' => 0, 'F' => 0],
-                'BEGINNING' => ['M' => 0, 'F' => 0],
-                'DEVELOPING' => ['M' => 0, 'F' => 0],
-                'APPROACHING' => ['M' => 0, 'F' => 0],
-                'PROFICIENT' => ['M' => 0, 'F' => 0],
-                'ADVANCED' => ['M' => 0, 'F' => 0],
+                'PROMOTED' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'IRREGULAR' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'RETAINED' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'BEGINNING' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'DEVELOPING' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'APPROACHING' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'PROFICIENT' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
+                'ADVANCED' => ['M' => 0, 'F' => 0, 'GRADE_7' => ['M' => 0, 'F' => 0], 'GRADE_8' => ['M' => 0, 'F' => 0], 'GRADE_9' => ['M' => 0, 'F' => 0], 'GRADE_10' => ['M' => 0, 'F' => 0]],
             ];
 
-            // Calculate stats without writing student rows
-            foreach ($students as $student) {
-                $studentData = $this->calculateStudentPromotion($student, $subjects, $quarters);
-                
-                $finalAverage = $studentData['final_average'] ?? 0;
-                $promotionStatus = $studentData['promotion_status'] ?? 'Incomplete';
-                
-                $actionTaken = 'RETAINED';
-                if ($promotionStatus === 'Pass') {
-                    $actionTaken = 'PROMOTED';
-                } elseif ($promotionStatus === 'Incomplete') {
-                    $actionTaken = 'IRREGULAR';
-                }
+            // Calculate stats using chunking to save memory
+            $studentQuery->orderBy('last_name')
+                ->orderBy('first_name')
+                ->chunk(100, function ($students) use (&$summaryStats, $subjects, $quarters, $academicYearId, $isOverallAcademicYear) {
+                    // Load relationships for this chunk
+                    $students->load([
+                        'grades' => function ($query) use ($academicYearId) {
+                            $query->whereHas('quarter', function ($q) use ($academicYearId) {
+                                $q->where('academic_year_id', $academicYearId);
+                            });
+                        },
+                        'enrollments' => function ($query) use ($academicYearId) {
+                            $query->where('academic_year_id', $academicYearId)
+                                ->with('section.yearLevel');
+                        }
+                    ]);
 
-                // Update Stats
-                $gender = strtoupper(substr($student->gender ?? 'M', 0, 1)); // Default to M if null, take first char
-                if ($gender !== 'M' && $gender !== 'F') $gender = 'M'; // Fallback
+                    // Optimize attendance counting
+                    $students->loadCount([
+                        'attendances' => function ($query) use ($academicYearId) {
+                            $query->whereHas('academicYear', function ($q) use ($academicYearId) {
+                                $q->where('id', $academicYearId);
+                            });
+                        },
+                        'attendances as present_attendances_count' => function ($query) use ($academicYearId) {
+                            $query->whereHas('academicYear', function ($q) use ($academicYearId) {
+                                $q->where('id', $academicYearId);
+                            })->where('status', 'present');
+                        }
+                    ]);
 
-                // Status Stats
-                if (isset($summaryStats[$actionTaken])) {
-                    $summaryStats[$actionTaken][$gender]++;
-                }
+                    foreach ($students as $student) {
+                        $studentData = $this->calculateStudentPromotion($student, $subjects, $quarters);
 
-                // Proficiency Stats
-                if ($finalAverage > 0) {
-                    if ($finalAverage >= 90) $summaryStats['ADVANCED'][$gender]++;
-                    elseif ($finalAverage >= 85) $summaryStats['PROFICIENT'][$gender]++;
-                    elseif ($finalAverage >= 80) $summaryStats['APPROACHING'][$gender]++;
-                    elseif ($finalAverage >= 75) $summaryStats['DEVELOPING'][$gender]++;
-                    else $summaryStats['BEGINNING'][$gender]++;
-                }
-            }
+                        $finalAverage = $studentData['final_average'] ?? 0;
+                        $promotionStatus = $studentData['promotion_status'] ?? 'Incomplete';
+
+                        $actionTaken = 'RETAINED';
+                        if ($promotionStatus === 'Pass') {
+                            $actionTaken = 'PROMOTED';
+                        } elseif ($promotionStatus === 'Incomplete') {
+                            $actionTaken = 'IRREGULAR';
+                        }
+
+                        // Update Stats
+                        $gender = strtoupper(substr($student->gender ?? 'M', 0, 1)); // Default to M if null, take first char
+                        if ($gender !== 'M' && $gender !== 'F') $gender = 'M'; // Fallback
+
+                        // Get student's year level for overall academic year export
+                        $studentYearLevel = null;
+                        if ($isOverallAcademicYear) {
+                            $enrollment = $student->enrollments->where('academic_year_id', $academicYearId)->first();
+                            if ($enrollment && $enrollment->section) {
+                                $section = $enrollment->section;
+                                // Access yearLevel - should be loaded via ->with('section.yearLevel')
+                                $studentYearLevel = $section->yearLevel ?? null;
+                            }
+                        }
+
+                        // Determine grade level key
+                        $gradeKey = null;
+                        if ($isOverallAcademicYear && $studentYearLevel) {
+                            $yearLevelName = strtoupper($studentYearLevel->name ?? '');
+                            if (str_contains($yearLevelName, '7')) $gradeKey = 'GRADE_7';
+                            elseif (str_contains($yearLevelName, '8')) $gradeKey = 'GRADE_8';
+                            elseif (str_contains($yearLevelName, '9')) $gradeKey = 'GRADE_9';
+                            elseif (str_contains($yearLevelName, '10')) $gradeKey = 'GRADE_10';
+                        }
+
+                        // Status Stats
+                        if (isset($summaryStats[$actionTaken])) {
+                            $summaryStats[$actionTaken][$gender]++;
+                            if ($gradeKey) {
+                                $summaryStats[$actionTaken][$gradeKey][$gender]++;
+                            }
+                        }
+
+                        // Proficiency Stats
+                        if ($finalAverage > 0) {
+                            $proficiencyKey = null;
+                            if ($finalAverage >= 90) $proficiencyKey = 'ADVANCED';
+                            elseif ($finalAverage >= 85) $proficiencyKey = 'PROFICIENT';
+                            elseif ($finalAverage >= 80) $proficiencyKey = 'APPROACHING';
+                            elseif ($finalAverage >= 75) $proficiencyKey = 'DEVELOPING';
+                            else $proficiencyKey = 'BEGINNING';
+
+                            if ($proficiencyKey) {
+                                $summaryStats[$proficiencyKey][$gender]++;
+                                if ($gradeKey) {
+                                    $summaryStats[$proficiencyKey][$gradeKey][$gender]++;
+                                }
+                            }
+                        }
+                    }
+                });
 
             // SUMMARY TABLE
             $row += 2;
@@ -1078,13 +1275,11 @@ class SuperAdminFormController extends Controller
             $sheet->mergeCells('A' . $row . ':A' . ($row + 1));
             
             $grades = [
-                'GRADE 1 / GRADE 7' => 'B',
-                'GRADE 2 / GRADE 8' => 'E',
-                'GRADE 3 / GRADE 9' => 'H',
-                'GRADE 4 / GRADE 10' => 'K',
-                'GRADE 5 / GRADE 11' => 'N',
-                'GRADE 6 / GRADE 12' => 'Q',
-                'TOTAL' => 'T'
+                'GRADE 7' => 'B',
+                'GRADE 8' => 'E',
+                'GRADE 9' => 'H',
+                'GRADE 10' => 'K',
+                'TOTAL' => 'N'
             ];
 
             foreach ($grades as $label => $col) {
@@ -1099,52 +1294,78 @@ class SuperAdminFormController extends Controller
             }
             
             // Style Headers
-            $sheet->getStyle('A' . $row . ':V' . ($row + 1))->getFont()->setBold(true)->setSize(9);
-            $sheet->getStyle('A' . $row . ':V' . ($row + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
-            $sheet->getStyle('A' . $row . ':V' . ($row + 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle('A' . $row . ':P' . ($row + 1))->getFont()->setBold(true)->setSize(9);
+            $sheet->getStyle('A' . $row . ':P' . ($row + 1))->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER)->setVertical(Alignment::VERTICAL_CENTER);
+            $sheet->getStyle('A' . $row . ':P' . ($row + 1))->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
 
             $row += 2;
 
-            // Determine current grade column
-            $currentGradeName = strtoupper($section->yearLevel->name ?? '');
-            $targetCol = null;
-            if (str_contains($currentGradeName, '7')) $targetCol = 'B';
-            elseif (str_contains($currentGradeName, '8')) $targetCol = 'E';
-            elseif (str_contains($currentGradeName, '9')) $targetCol = 'H';
-            elseif (str_contains($currentGradeName, '10')) $targetCol = 'K';
-            elseif (str_contains($currentGradeName, '11')) $targetCol = 'N';
-            elseif (str_contains($currentGradeName, '12')) $targetCol = 'Q';
+            // Determine current grade column(s)
+            $targetCols = [];
+            if ($isOverallAcademicYear) {
+                // For overall academic year, show all grade levels
+                $targetCols = ['B' => 'GRADE_7', 'E' => 'GRADE_8', 'H' => 'GRADE_9', 'K' => 'GRADE_10'];
+            } else {
+                // For specific section/year level, show only that grade level
+                $currentGradeName = strtoupper($yearLevel->name ?? '');
+                $targetCol = null;
+                if (str_contains($currentGradeName, '7')) $targetCol = 'B';
+                elseif (str_contains($currentGradeName, '8')) $targetCol = 'E';
+                elseif (str_contains($currentGradeName, '9')) $targetCol = 'H';
+                elseif (str_contains($currentGradeName, '10')) $targetCol = 'K';
+                
+                if ($targetCol) {
+                    $targetCols[$targetCol] = null; // No grade key needed for single grade level
+                }
+            }
 
             // Helper to fill row
-            $fillSummaryRow = function($label, $statKey, $isHeader = false) use (&$sheet, &$row, $targetCol, $summaryStats) {
+            $fillSummaryRow = function($label, $statKey, $isHeader = false) use (&$sheet, &$row, $targetCols, $summaryStats, $isOverallAcademicYear) {
                 $sheet->setCellValue('A' . $row, $label);
                 if ($isHeader) {
-                     // Repeat M/F/Total headers
-                     $cols = ['B', 'E', 'H', 'K', 'N', 'Q', 'T'];
+                     // Repeat M/F/Total headers (Grade 7, 8, 9, 10, TOTAL)
+                     $cols = ['B', 'E', 'H', 'K', 'N'];
                      foreach ($cols as $col) {
                         $sheet->setCellValue($col . $row, 'MALE');
                         $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 1) . $row, 'FEMALE');
                         $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 2) . $row, 'TOTAL');
                      }
-                     $sheet->getStyle('A' . $row . ':V' . $row)->getFont()->setBold(true)->setSize(9);
+                     $sheet->getStyle('A' . $row . ':P' . $row)->getFont()->setBold(true)->setSize(9);
                 } else {
-                    if ($targetCol && $statKey) {
-                        $m = $summaryStats[$statKey]['M'];
-                        $f = $summaryStats[$statKey]['F'];
-                        $t = $m + $f;
+                    if ($statKey && !empty($targetCols)) {
+                        $totalM = 0;
+                        $totalF = 0;
                         
-                        $sheet->setCellValue($targetCol . $row, $m);
-                        $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 1) . $row, $f);
-                        $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 2) . $row, $t);
+                        // Fill data for each target column
+                        foreach ($targetCols as $col => $gradeKey) {
+                            if ($isOverallAcademicYear && $gradeKey) {
+                                // For overall academic year, use grade-specific stats
+                                $m = $summaryStats[$statKey][$gradeKey]['M'] ?? 0;
+                                $f = $summaryStats[$statKey][$gradeKey]['F'] ?? 0;
+                            } else {
+                                // For single grade level, use overall stats
+                                $m = $summaryStats[$statKey]['M'] ?? 0;
+                                $f = $summaryStats[$statKey]['F'] ?? 0;
+                            }
+                            $t = $m + $f;
+                            
+                            $sheet->setCellValue($col . $row, $m);
+                            $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 1) . $row, $f);
+                            $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 2) . $row, $t);
+                            
+                            $totalM += $m;
+                            $totalF += $f;
+                        }
                         
-                        // Also fill Total Column (T)
-                        $sheet->setCellValue('T' . $row, $m);
-                        $sheet->setCellValue('U' . $row, $f);
-                        $sheet->setCellValue('V' . $row, $t);
+                        // Fill Total Column (N, O, P)
+                        $totalT = $totalM + $totalF;
+                        $sheet->setCellValue('N' . $row, $totalM);
+                        $sheet->setCellValue('O' . $row, $totalF);
+                        $sheet->setCellValue('P' . $row, $totalT);
                     }
                 }
-                $sheet->getStyle('A' . $row . ':V' . $row)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-                $sheet->getStyle('A' . $row . ':V' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+                $sheet->getStyle('A' . $row . ':P' . $row)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $sheet->getStyle('A' . $row . ':P' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
                 $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT); // Label left aligned
                 $row++;
             };
@@ -1163,25 +1384,43 @@ class SuperAdminFormController extends Controller
             
             // Total Row
             $sheet->setCellValue('A' . $row, 'TOTAL');
-            if ($targetCol) {
-                 $totalM = 0; $totalF = 0;
-                 foreach(['BEGINNING', 'DEVELOPING', 'APPROACHING', 'PROFICIENT', 'ADVANCED'] as $key) {
-                     $totalM += $summaryStats[$key]['M'];
-                     $totalF += $summaryStats[$key]['F'];
-                 }
-                 $totalT = $totalM + $totalF;
-                 
-                 $sheet->setCellValue($targetCol . $row, $totalM);
-                 $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 1) . $row, $totalF);
-                 $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($targetCol) + 2) . $row, $totalT);
-                 
-                 $sheet->setCellValue('T' . $row, $totalM);
-                 $sheet->setCellValue('U' . $row, $totalF);
-                 $sheet->setCellValue('V' . $row, $totalT);
+            if (!empty($targetCols)) {
+                $grandTotalM = 0;
+                $grandTotalF = 0;
+                
+                // Calculate totals for each grade level column
+                foreach ($targetCols as $col => $gradeKey) {
+                    $colTotalM = 0;
+                    $colTotalF = 0;
+                    
+                    foreach(['BEGINNING', 'DEVELOPING', 'APPROACHING', 'PROFICIENT', 'ADVANCED'] as $key) {
+                        if ($isOverallAcademicYear && $gradeKey) {
+                            $colTotalM += $summaryStats[$key][$gradeKey]['M'] ?? 0;
+                            $colTotalF += $summaryStats[$key][$gradeKey]['F'] ?? 0;
+                        } else {
+                            $colTotalM += $summaryStats[$key]['M'] ?? 0;
+                            $colTotalF += $summaryStats[$key]['F'] ?? 0;
+                        }
+                    }
+                    
+                    $colTotalT = $colTotalM + $colTotalF;
+                    $sheet->setCellValue($col . $row, $colTotalM);
+                    $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 1) . $row, $colTotalF);
+                    $sheet->setCellValue(Coordinate::stringFromColumnIndex(Coordinate::columnIndexFromString($col) + 2) . $row, $colTotalT);
+                    
+                    $grandTotalM += $colTotalM;
+                    $grandTotalF += $colTotalF;
+                }
+                
+                // Fill Total Column (N, O, P)
+                $grandTotalT = $grandTotalM + $grandTotalF;
+                $sheet->setCellValue('N' . $row, $grandTotalM);
+                $sheet->setCellValue('O' . $row, $grandTotalF);
+                $sheet->setCellValue('P' . $row, $grandTotalT);
             }
-            $sheet->getStyle('A' . $row . ':V' . $row)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
-            $sheet->getStyle('A' . $row . ':V' . $row)->getFont()->setBold(true);
-            $sheet->getStyle('A' . $row . ':V' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+            $sheet->getStyle('A' . $row . ':P' . $row)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+            $sheet->getStyle('A' . $row . ':P' . $row)->getFont()->setBold(true);
+            $sheet->getStyle('A' . $row . ':P' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
             $sheet->getStyle('A' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
             $row++;
 
@@ -1190,25 +1429,64 @@ class SuperAdminFormController extends Controller
             $sheet->setCellValue('A' . $footerRow, 'School Form 6: Page ___ of ___');
 
             // Generate Excel file
-            $writer = new Xlsx($spreadsheet);
-            $fileName = 'SF6_Learner_Progress_' . $section->name . '_' . $academicYear->name . '.xlsx';
+            try {
+                $writer = new Xlsx($spreadsheet);
+                if ($isOverallAcademicYear) {
+                    $fileName = 'SF6_Learner_Progress_Overall_' . $academicYear->name . '.xlsx';
+                } else {
+                    $sectionName = $isCompiled ? ($yearLevel->name ?? 'N/A') : ($sections->first()->name ?? 'N/A');
+                    $fileName = 'SF6_Learner_Progress_' . $sectionName . '_' . $academicYear->name . '.xlsx';
+                }
 
-            ob_start();
-            $writer->save('php://output');
-            $content = ob_get_contents();
-            ob_end_clean();
+                // Clear any previous output
+                if (ob_get_level()) {
+                    ob_end_clean();
+                }
+                
+                ob_start();
+                $writer->save('php://output');
+                $content = ob_get_contents();
+                ob_end_clean();
 
-            return response($content)
-                ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
-                ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"')
-                ->header('Cache-Control', 'max-age=0');
+                return response($content)
+                    ->header('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+                    ->header('Content-Disposition', 'attachment; filename="' . $fileName . '"')
+                    ->header('Cache-Control', 'max-age=0')
+                    ->header('Access-Control-Allow-Origin', '*')
+                    ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                    ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+            } catch (\Exception $excelError) {
+                // Clean output buffer if error occurred
+                if (ob_get_level()) {
+                    ob_end_clean();
+                }
+                throw $excelError; // Re-throw to be caught by outer catch
+            }
         } catch (\Exception $e) {
-            Log::error('SF6 Excel Export Error: ' . $e->getMessage());
+            // Clean output buffer if error occurred
+            if (ob_get_level()) {
+                ob_end_clean();
+            }
+            
+            Log::error('SF6 Excel Export Error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'academic_year_id' => $request->input('academic_year_id'),
+                'section_id' => $request->input('section_id'),
+                'year_level_id' => $request->input('year_level_id'),
+            ]);
+            
+            // Return JSON error response with CORS headers (frontend will handle this)
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to export SF6 Excel',
-                'error' => $e->getMessage()
-            ], 500);
+                'message' => 'Failed to export SF6 Excel: ' . $e->getMessage(),
+                'error' => config('app.debug') ? $e->getMessage() : 'An error occurred while exporting the file'
+            ], 500)
+                ->header('Access-Control-Allow-Origin', '*')
+                ->header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+                ->header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
         }
     }
 
